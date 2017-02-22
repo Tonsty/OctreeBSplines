@@ -66,7 +66,7 @@ public:
 	static inline void CenterAndWidth(const NodeIndex& nIndex,Point3D<Real>& center,Real& width);
 
 	int leaves(void) const;
-	int maxDepthLeaves(const int& maxDepth) const;
+	//int maxDepthLeaves(const int& maxDepth) const;
 	int nodes(void) const;
 	int maxDepth(void) const;
 

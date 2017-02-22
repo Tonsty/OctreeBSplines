@@ -170,16 +170,16 @@ int OctNode<NodeData,Real>::leaves(void) const{
 		return c;
 	}
 }
-template<class NodeData,class Real>
-int OctNode<NodeData,Real>::maxDepthLeaves(const int& maxDepth) const{
-	if(depth()>maxDepth){return 0;}
-	if(!children){return 1;}
-	else{
-		int c=0;
-		for(int i=0;i<Cube::CORNERS;i++){c+=children[i].maxDepthLeaves(maxDepth);}
-		return c;
-	}
-}
+//template<class NodeData,class Real>
+//int OctNode<NodeData,Real>::maxDepthLeaves(const int& maxDepth) const{
+//	if(depth()>maxDepth){return 0;}
+//	if(!children){return 1;}
+//	else{
+//		int c=0;
+//		for(int i=0;i<Cube::CORNERS;i++){c+=children[i].maxDepthLeaves(maxDepth);}
+//		return c;
+//	}
+//}
 template <class NodeData,class Real>
 const OctNode<NodeData,Real>* OctNode<NodeData,Real>::root(void) const{
 	const OctNode* temp=this;
