@@ -114,8 +114,13 @@ class IsoOctree
 	template<class MeshReal>
 	void setDistanceAndNormal(const std::vector<int>& triangles,MeshInfo<MeshReal>& mInfo,const Point3D<Real>& p,	Real& v,Point3D<Real>& n);
 	template<class MeshReal>
+	void setDistanceAndNormal2(const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const Point3D<Real>& p,	Real& v,Point3D<Real>& n);
+	template<class MeshReal>
 	void setChildren(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
 		const std::vector<int>& triangles,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL);
+	template<class MeshReal>
+	void setChildren2(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
+		const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL);
 
 	// Assumes NodeData::mcIndex
 	void setMCIndex(const Real& isoValue,const int& useFull);

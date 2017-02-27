@@ -342,6 +342,17 @@ void IsoOctree<NodeData,Real,VertexData>::MeshInfo<MeshReal>::set(const std::vec
 	for(size_t i=0;i<verts.size();i++)
 		for(int j=0;j<3;j++)
 			vertices[i][j]=MeshReal((translate[j]+(Point3D<Real>(verts[i]))[j])*scale);
+	//vertices have precomputed normals, use point to point (plane) distance metric to compute signed distance
+	if (Vertex::Components > 3)
+	{
+		vertexNormals.resize(vertices.size());
+		for(size_t i=0;i<verts.size();i++) {
+			for(int j=0;j<3;j++)
+				vertexNormals[i][j]=MeshReal(*(Real*)((char*)&verts[i] + Vertex::Properties[3+j].offset));
+				vertexNormals[i]/=Length(vertexNormals[i]);
+		}
+		return;
+	}
 	size_t pSize=0;
 	size_t vSize=verts.size();
 	for(size_t i=0;i<polys.size();i++)
@@ -421,9 +432,18 @@ int IsoOctree<NodeData,Real,VertexData>::set(const std::vector<Vertex>& vertices
 
 	MeshInfo<double> mInfo;
 	std::vector<int> myTriangles;
-	mInfo.set(vertices,polygons,Real(1.1),translate,scale,noTransform);
-	myTriangles.resize(mInfo.triangles.size());
-	for(int i=0;i<int(mInfo.triangles.size());i++) myTriangles[i]=i;
+	std::vector<int> myVertices;
+	mInfo.set(vertices,polygons,Real(1.05),translate,scale,noTransform);
+	if(Vertex::Components > 3) 
+	{
+		myVertices.resize(mInfo.vertices.size());
+		for(int i=0;i<int(mInfo.vertices.size());i++) myVertices[i]=i;
+	}
+	else 
+	{
+		myTriangles.resize(mInfo.triangles.size());
+		for(int i=0;i<int(mInfo.triangles.size());i++) myTriangles[i]=i;
+	}
 
 	cornerValues.clear();
 	Real dist;
@@ -436,17 +456,20 @@ int IsoOctree<NodeData,Real,VertexData>::set(const std::vector<Vertex>& vertices
 		p[1]=Real(y);
 		p[2]=Real(z);
 
-		setDistanceAndNormal(myTriangles,mInfo,p,dist,n);
+		if(Vertex::Components > 3) setDistanceAndNormal2(myVertices,mInfo,p,dist,n);
+		else setDistanceAndNormal(myTriangles,mInfo,p,dist,n);
 		cornerValues[OctNode<NodeData,Real>::CornerIndex(nIdx,c,maxDepth)]=VertexData(dist,n);
 	}
 	if(setCenter)
 	{
 		Real w;
 		OctNode<NodeData,Real>::CenterAndWidth(nIdx,tree.nodeData.center,w);
-		setDistanceAndNormal(myTriangles,mInfo,tree.nodeData.center,dist,n);
+		if(Vertex::Components > 3) setDistanceAndNormal2(myVertices,mInfo,tree.nodeData.center,dist,n);
+		else setDistanceAndNormal(myTriangles,mInfo,tree.nodeData.center,dist,n);
 		tree.nodeData.v=VertexData(dist,n);
 	}
-	setChildren(&tree,nIdx,myTriangles,mInfo,maxDepth,setCenter,flatness);
+	if(Vertex::Components > 3) setChildren2(&tree,nIdx,myVertices,mInfo,maxDepth,setCenter,flatness);
+	else setChildren(&tree,nIdx,myTriangles,mInfo,maxDepth,setCenter,flatness);
 	return 1;
 }
 template<class NodeData,class Real,class VertexData>
@@ -649,6 +672,70 @@ void IsoOctree<NodeData,Real,VertexData>::setDistanceAndNormal(const std::vector
 
 template<class NodeData,class Real,class VertexData>
 template<class MeshReal>
+void IsoOctree<NodeData,Real,VertexData>::setDistanceAndNormal2(const std::vector<int>& vindices,
+	MeshInfo<MeshReal>& mInfo,
+	const Point3D<Real>& p,
+	Real& dist,
+	Point3D<Real>& n)
+{
+	Point3D<MeshReal> pp,t;
+	pp[0]=p[0];
+	pp[1]=p[1];
+	pp[2]=p[2];
+	size_t closest;
+	for(size_t i=0;i<vindices.size();i++) 
+	{
+		MeshReal temp;
+		for(int j=0;j<3;j++) t[j]=mInfo.vertices[vindices[i]][j];
+
+		//point to point distance
+		temp=Distance(pp,t); 
+		if(!i || temp<dist )
+		{
+			closest=i;
+			dist=temp;
+		}
+	}
+	Point3D<MeshReal> nn;
+	int vFlag;
+
+	closest=vindices[closest];
+
+	for(int i=0;i<3;i++) 
+	{
+		t[i]=mInfo.vertices[closest][i];
+		nn[i]=mInfo.vertexNormals[closest][i];
+	}
+
+	//only points locating inside narrow band consider point to plane distance
+	Real narrow_band = 2.0;
+	Point3D<MeshReal> n2;
+	if (dist<narrow_band) {
+		n2=NearestPointOnPlane(pp,t,nn,vFlag);
+		//point to plane distance
+		Real dist2=Distance(pp,n2); 
+		dist = dist2;
+		//point to plane orientation
+		n2=(pp-n2)/dist2; 
+	}
+	else 
+	{
+		//point to point orientation
+		n2 = (pp-t)/Distance(pp,t);
+	}
+
+	if(DotProduct(nn,n2)<0)
+	{
+		dist=-dist;
+		n2*=-1;
+	}
+	n[0]=n2[0];
+	n[1]=n2[1];
+	n[2]=n2[2];
+}
+
+template<class NodeData,class Real,class VertexData>
+template<class MeshReal>
 void IsoOctree<NodeData,Real,VertexData>::setChildren(OctNode<NodeData,Real>* node,
 													  const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
 													  const std::vector<int>& triangles,MeshInfo<MeshReal>& mInfo,
@@ -773,6 +860,133 @@ void IsoOctree<NodeData,Real,VertexData>::setChildren(OctNode<NodeData,Real>* no
 			triangleMap->erase(key);
 		}
 	}
+}
+
+template<class NodeData,class Real,class VertexData>
+template<class MeshReal>
+void IsoOctree<NodeData,Real,VertexData>::setChildren2(OctNode<NodeData,Real>* node,
+	const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
+	const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,
+	const int& maxDepth,const int& setCenter,
+	const Real& flatness,
+	stdext::hash_map<long long,std::vector<int>*>* triangleMap)
+{
+	long long key;
+	Real w,dist;
+	Point3D<Real> ctr,n,p;
+	if(!vindices.size())		return;
+	if(nIdx.depth==maxDepth)	return;
+
+	//if(triangleMap)
+	//{
+	//	std::vector<int>* myTriangles=new std::vector<int>();
+	//	long long key=OctNode<NodeData,Real>::CenterIndex(nIdx,maxDepth);
+	//	myTriangles->resize(triangles.size());
+	//	for(size_t i=0;i<triangles.size();i++) (*myTriangles)[i]=triangles[i];
+	//	(*triangleMap)[key]=myTriangles;
+	//}
+
+	//if(flatness>0)
+	//{
+	//	MeshReal area;
+	//	Point3D<MeshReal> mc;
+	//	area=0;
+	//	mc[0]=mc[1]=mc[2]=0;
+	//	for(size_t i=0;i<triangles.size();i++)
+	//	{
+	//		area+=Length(mInfo.triangleNormals[triangles[i]]);
+	//		mc+=mInfo.triangleNormals[triangles[i]];
+	//	}
+	//	if(Length(mc)/area>flatness) return;
+	//}
+
+	if(!node->children)	node->initChildren();
+	OctNode<NodeData,Real>::CenterAndWidth(nIdx,ctr,w);
+
+	// Set the center
+	setDistanceAndNormal2(vindices,mInfo,ctr,dist,n);
+	key=OctNode<NodeData,Real>::CenterIndex(nIdx,maxDepth);
+	if( cornerValues.find(key)==cornerValues.end() || fabs(cornerValues[key].value())>fabs(dist) )
+		cornerValues[key]=VertexData(dist,n);
+
+	// Set the edge mid-points
+	for(int i=0;i<Cube::EDGES;i++)
+	{
+		int o,i1,i2;
+		Cube::FactorEdgeIndex(i,o,i1,i2);
+		p=ctr;
+		p[0]-=w/2;
+		p[1]-=w/2;
+		p[2]-=w/2;
+		p[o]=ctr[o];
+		switch(o)
+		{
+		case 0:
+			p[1]+=w*i1;
+			p[2]+=w*i2;
+			break;
+		case 1:
+			p[0]+=w*i1;
+			p[2]+=w*i2;
+			break;
+		case 2:
+			p[0]+=w*i1;
+			p[1]+=w*i2;
+			break;
+		}
+		setDistanceAndNormal2(vindices,mInfo,p,dist,n);
+		key=OctNode<NodeData,Real>::EdgeIndex(nIdx,i,maxDepth);
+		if( cornerValues.find(key)==cornerValues.end() || fabs(cornerValues[key].value())>fabs(dist) )
+			cornerValues[key]=VertexData(dist,n);
+	}
+
+	// set the face mid-points
+	for(int i=0;i<Cube::FACES;i++)
+	{
+		int dir,off;
+		Cube::FactorFaceIndex(i,dir,off);
+		p=ctr;
+		p[dir]+=-w/2+w*off;
+		setDistanceAndNormal2(vindices,mInfo,p,dist,n);
+		key=OctNode<NodeData,Real>::FaceIndex(nIdx,i,maxDepth);
+		if( cornerValues.find(key)==cornerValues.end() || fabs(cornerValues[key].value())>fabs(dist) )
+			cornerValues[key]=VertexData(dist,n);
+	}
+
+	int retCount=0;
+	for(int i=0;i<Cube::CORNERS;i++)
+	{
+		std::vector<int> myVertices;
+		OctNode<NodeData,Real>::CenterAndWidth(nIdx.child(i),ctr,w);
+		if(setCenter)
+		{
+			OctNode<NodeData,Real>::CenterAndWidth(nIdx.child(i),node->children[i].nodeData.center,w);
+			setDistanceAndNormal2(vindices,mInfo,node->children[i].nodeData.center,dist,n);
+			node->children[i].nodeData.v=VertexData(dist,n);
+		}
+
+		for(size_t j=0;j<vindices.size();j++)
+		{
+			Point3D<MeshReal> t = mInfo.vertices[vindices[j]];
+			Point3D<MeshReal> ctr2;
+			MeshReal w2=w;
+			ctr2[0]=ctr[0];
+			ctr2[1]=ctr[1];
+			ctr2[2]=ctr[2];
+			if(PointInCube(ctr2,w2*3.237,t)) myVertices.push_back(vindices[j]);
+		}
+		setChildren2(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,triangleMap);
+		if(myVertices.size()) retCount++;
+	}
+	//if(triangleMap && retCount==8)
+	//{
+	//	long long key=OctNode<NodeData,Real>::CenterIndex(nIdx,maxDepth);
+	//	if(triangleMap->find(key)!=triangleMap->end() && (*triangleMap)[key]!=NULL)
+	//	{
+	//		delete (*triangleMap)[key];
+	//		triangleMap->erase(key);
+	//	}
+	//}
 }
 
 template<class NodeData,class Real,class VertexData>

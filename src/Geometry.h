@@ -85,7 +85,8 @@ template <class Real>
 Point3D<Real> NearestPointOnEdge(const Point3D<Real>& p,const Point3D<Real> e[2],int& vFlag);
 template <class Real>
 Point3D<Real> NearestPointOnTriangle(const Point3D<Real>& p,const Point3D<Real> t[3],int& vFlag);
-
+template <class Real>
+Point3D<Real> NearestPointOnPlane(const Point3D<Real>& p,const Point3D<Real> t,const Point3D<Real> n,int& vFlag);
 
 template <class Real>
 int OutCode(const Point3D<Real>& ctr,const Real& w,const Point3D<Real>& p);

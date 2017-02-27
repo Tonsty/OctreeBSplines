@@ -37,6 +37,9 @@ DAMAGE.
 #include "VertexData.h"
 #include "Geometry.h"
 #include "MAT.h"
+#include "Ply2.h"
+
+typedef PlyVertexWithNormal MyPlyVertex;
 
 template<class VertexData,class Real>
 class MyNodeData
@@ -216,7 +219,7 @@ int main(int argc,char* argv[])
 	IsoOctree<MyNodeData<VertexValue<float>,float>,float,VertexValue<float>> isoTree;
 
 	int ft;
-	std::vector<PlyVertex> vertices;
+	std::vector<MyPlyVertex> vertices;
 	std::vector<std::vector<int> > polygons;
 
 	PlyReadPolygons(In.value,vertices,polygons,ft);
@@ -304,7 +307,7 @@ int main(int argc,char* argv[])
 	{
 		std::vector<std::vector<int> > triangles;
 		double t=Time();
-		PolygonToManifoldTriangleMesh<PlyVertex,float>(vertices,polygons,triangles);
+		PolygonToManifoldTriangleMesh<MyPlyVertex,float>(vertices,polygons,triangles);
 		printf("Converted polygons to triangles in: %f\n",Time()-t);
 		PlyWritePolygons(Out.value,vertices,triangles,ft);
 		printf("Vertices: %d\n",vertices.size());
@@ -314,7 +317,7 @@ int main(int argc,char* argv[])
 	{
 		std::vector<std::vector<int> > triangles;
 		double t=Time();
-		PolygonToTriangleMesh<PlyVertex,float>(vertices,polygons,triangles);
+		PolygonToTriangleMesh<MyPlyVertex,float>(vertices,polygons,triangles);
 		printf("Converted polygons to triangles in: %f\n",Time()-t);
 		PlyWritePolygons(Out.value,vertices,triangles,ft);
 		printf("Vertices: %d\n",vertices.size());

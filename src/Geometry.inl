@@ -268,6 +268,16 @@ Point3D<Real> NearestPointOnTriangle(const Point3D<Real>& p,const Point3D<Real> 
 	vFlag=7;
 	return v;
 }
+template <class Real>
+Point3D<Real> NearestPointOnPlane(const Point3D<Real>& p,const Point3D<Real> t,const Point3D<Real> n,int& vFlag)
+{
+	Point3D<Real> q,nearest;
+	vFlag=0;
+
+	q=p-t;
+	nearest=p-n*DotProduct(q,n);
+	return nearest;
+}
 
 template <class Real>
 int OutCode(const Point3D<Real>& ctr,const Real& w,const Point3D<Real>& p)
