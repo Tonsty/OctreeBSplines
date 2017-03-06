@@ -67,6 +67,7 @@ public:
 template<class NodeData,class Real,class VertexData>
 class IsoOctree
 {
+protected:
 	class TriangleIndex
 	{
 	public:
@@ -93,6 +94,9 @@ class IsoOctree
 		template<class Vertex>
 		void set(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,const Real& width,
 			Point3D<Real>& translate,Real& scale,const int& noTransform);
+		template<class Vertex>
+		void set2(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,const Real& width,
+			Point3D<Real>& translate,Real& scale,const int& noTransform);
 	};
 
 	template<class Vertex>
@@ -114,13 +118,8 @@ class IsoOctree
 	template<class MeshReal>
 	void setDistanceAndNormal(const std::vector<int>& triangles,MeshInfo<MeshReal>& mInfo,const Point3D<Real>& p,	Real& v,Point3D<Real>& n);
 	template<class MeshReal>
-	void setDistanceAndNormal2(const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const Point3D<Real>& p,	Real& v,Point3D<Real>& n);
-	template<class MeshReal>
 	void setChildren(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
 		const std::vector<int>& triangles,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL);
-	template<class MeshReal>
-	void setChildren2(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
-		const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL);
 
 	// Assumes NodeData::mcIndex
 	void setMCIndex(const Real& isoValue,const int& useFull);

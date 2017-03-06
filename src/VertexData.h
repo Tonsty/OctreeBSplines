@@ -29,6 +29,8 @@ DAMAGE.
 #ifndef VERTEX_DATA_INCLUDED
 #define VERTEX_DATA_INCLUDED
 
+#include "Function.h"
+
 template<class Real>
 class VertexValue
 {
@@ -42,6 +44,7 @@ public:
 	VertexValue operator * (const Real& v) const;
 	VertexValue operator / (const Real& v) const;
 	static Point3D<Real> RootPosition(const Real& isoValue,const Point3D<Real>& p1,const Point3D<Real>& p2,VertexValue v1,VertexValue v2);
+	static Function*f;
 };
 #include "VertexData.inl"
 

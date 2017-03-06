@@ -31,6 +31,7 @@ DAMAGE.
 #include <float.h>
 #include <omp.h>
 #include "IsoOctree.h"
+#include "OctreeBspline.h"
 #include "CmdLineParser.h"
 #include "Ply.h"
 #include "Time.h"
@@ -38,6 +39,7 @@ DAMAGE.
 #include "Geometry.h"
 #include "MAT.h"
 #include "Ply2.h"
+#include "PolygonizerHelper.h"
 
 typedef PlyVertexWithNormal MyPlyVertex;
 
@@ -124,9 +126,9 @@ void PolygonToManifoldTriangleMesh( std::vector<Vertex>& vertices , const std::v
 			Point3D< Real > center;
 			center *= 0;
 			for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
-			center /= polygons[i].size();
+			center /= (Real) polygons[i].size();
 
-			int idx = vertices.size();
+			int idx = (int) vertices.size();
 			vertices.push_back( center );
 			t[2] = idx;
 			for( int j=0 ; j<polygons[i].size() ; j++ )
@@ -181,8 +183,11 @@ void ShowUsage(char* ex)
 	printf( "\t\tIf this flag is enabled and the output is a mesh, the mesh\n");
 	printf( "\t\twill be triangulated by adding the barycenter to each polygon\n");
 	printf( "\t\t\to each polygon with more than three vertices.\n");
-}
 
+	printf( "\t[--bspline <max depth value of the hierarchical B-Splines>]\n");
+	printf( "\t\tThis flag fits the adaptive distance field by\n");
+	printf( "\t\ta hierarchical implicit B-Splines function.\n");
+}
 
 int main(int argc,char* argv[])
 {
@@ -191,17 +196,17 @@ int main(int argc,char* argv[])
 
 	typedef OctNode<MyNodeData<VertexValue<float>,float>,float> MyOctNode;
 
-	cmdLineString In , Out;
-	cmdLineReadable Conforming , FullCaseTable , TriangleMesh , Dual , Manifold;
+	cmdLineString In, Out;
+	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold;
 	cmdLineFloat Curvature(-1);
-	cmdLineInt MaxDepth;
+	cmdLineInt MaxDepth,Bspline(-1);
 	char* paramNames[]=
 	{
-		"in","out","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual" , "manifold" 
+		"in","out","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold","bspline" 
 	};
 	cmdLineReadable* params[]= 
 	{
-		&In,&Out,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual , &Manifold
+		&In,&Out,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,&Bspline
 	};
 	int paramNum=sizeof(paramNames)/sizeof(char*);
 	cmdLineParse(argc-1,&argv[1],paramNames,paramNum,params,0);
@@ -212,98 +217,59 @@ int main(int argc,char* argv[])
 		return EXIT_FAILURE;
 	}
 
+	if(Bspline.set && (Bspline.value<=0 || Bspline.value>MaxDepth.value)) Bspline.value=MaxDepth.value;
+
 	Point3D<float> translate;
 	float scale=1.f;
 	translate[0]=translate[1]=translate[2]=0;
 
-	IsoOctree<MyNodeData<VertexValue<float>,float>,float,VertexValue<float>> isoTree;
+	typedef OctreeBspline<MyNodeData<VertexValue<float>,float>,float,VertexValue<float>> OctBspline;
+	OctBspline octreeBspline;
+	octreeBspline.maxBsplineDepth=Bspline.value;
+	//VertexValue<float>::f=(Function*)(&octreeBspline);
 
 	int ft;
 	std::vector<MyPlyVertex> vertices;
 	std::vector<std::vector<int> > polygons;
 
+	double t=Time();
+
+	printf("Loading data ...\n");
 	PlyReadPolygons(In.value,vertices,polygons,ft);
-	if(Conforming.set)
-		isoTree.setConforming(vertices,polygons,MaxDepth.value,Dual.set,Curvature.value,translate,scale,0);
-	else
-		isoTree.set(vertices,polygons,MaxDepth.value,Dual.set,Curvature.value,translate,scale,0);
+	printf("Got data in: %f\n", Time()-t);
 
-	printf("Nodes In: %d / %d\n",isoTree.tree.nodes(),isoTree.tree.leaves());
-	printf("Values In: %d\n",isoTree.cornerValues.size());
+	printf("Establishing signed distance field ...\n");
+	printf("maxDepth: %d\n", MaxDepth.value);
+	printf("maxBsplineDepth: %d\n", Bspline.value);
+	t=Time();
+	octreeBspline.set2(vertices,polygons,MaxDepth.value,Dual.set,Curvature.value,translate,scale,0);
+	printf("Got signed distance field in: %f\n", Time()-t);
+	printf("Nodes In: %d / %d\n",octreeBspline.tree.nodes(),octreeBspline.tree.leaves());
+	printf("Values In: %d\n",octreeBspline.cornerValues.size());
 
-	if(Curvature.value>0)
+	if(Bspline.set && Bspline.value>0) 
 	{
-		stdext::hash_map<long long,std::pair<Point3D<float>,float>> flatness;
-		isoTree.setNormalFlatness(0,flatness);
-		if(Conforming.set)
-		{
-			for(int i=isoTree.maxDepth-1;i>=0;i--)
-			{
-				MyOctNode::NodeIndex nIdx;
-				for(MyOctNode* temp=isoTree.tree.nextNode(NULL,nIdx) ; temp ; temp=isoTree.tree.nextNode(temp,nIdx))
-					if(nIdx.depth==i)
-						if(IsClippable(isoTree,temp,nIdx,flatness,Curvature.value,1))
-							temp->deleteChildren();
-			}
-		}
-		else
-		{
-			MyOctNode::NodeIndex nIdx;
-			for(MyOctNode* temp=isoTree.tree.nextNode(NULL,nIdx) ; temp ; temp=isoTree.tree.nextNode(temp,nIdx) )
-				if(IsClippable(isoTree,temp,nIdx,flatness,Curvature.value,0))
-					temp->deleteChildren();
-		}
-		isoTree.resetValues();
-		printf("Clipped Nodes: %d / %d\n",isoTree.tree.nodes(),isoTree.tree.leaves());
-		printf("Clipped Values: %d\n",isoTree.cornerValues.size());
+		t=Time();
+		printf("Fitting data ...\n");
+		octreeBspline.directBsplineFitting();
+		printf("Got fitted in: %f\n", Time()-t);
+		//octreeBspline.multigridBsplineFitting();
+		//octreeBspline.exportVTKData(scale,translate);
 	}
 
 	vertices.clear();
 	polygons.clear();
-	if(Dual.set)
-	{
-		double t=Time();
-		isoTree.getDualIsoSurface(0,vertices,polygons,FullCaseTable.set);
-		printf("Got iso-surface in: %f\n",Time()-t);
-	}
-	else
-	{
-		double t=Time();
-		isoTree.getIsoSurface(0,vertices,polygons,FullCaseTable.set);
-		printf("Got iso-surface in: %f\n",Time()-t);
-	}
-#if 0
-	{
-		stdext::hash_map< EdgeKey , int > eMap;
-		for( int i=0 ; i<polygons.size() ; i++ )
-			for( int j=0 ; j<polygons[i].size() ; j++ )
-			{
-				int v1 = polygons[i][j] , v2 = polygons[i][(j+1)%polygons[i].size()];
-				EdgeKey key( v1 , v2 );
-				if( eMap.find(key)==eMap.end() ) eMap[key] = 0;
-				eMap[key]++;
-			}
-		int bCount = 0;
-		for( stdext::hash_map< EdgeKey , int >::iterator iter=eMap.begin() ; iter!=eMap.end() ; iter++ )
-		{
-			if( iter->second>2 ) fprintf( stderr , "[Error] Non-manifold edge: (%d , %d) = %d\n" , iter->first.key1 , iter->first.key2 , iter->second );
-			else if( iter->second==1 ) bCount++;
-		}
-		printf( "Boundaries: %d\n" , bCount );
-		for( int i=0 ; i<vertices.size() ; i++ )
-			for( int j=0 ; j<i ; j++ )
-			{
-				Point3D< float > p = vertices[i].point - vertices[j].point;
-				double l = Length( p );
-				if( l<1e-7 ) fprintf( stderr , "[Warning] Found duplicate vertex: %d %d\t%f %f %f\n" , i , j , vertices[i].point[0] , vertices[i].point[1] , vertices[i].point[2] );
-			}
-	}
-#endif
+
+	printf("Estracting iso-surface ...\n");
+	t=Time();
+	octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
+	octreeBspline.getIsoSurface(0,vertices,polygons,FullCaseTable.set);
+	printf("Got iso-surface in: %f\n",Time()-t);
 
 	for(size_t i=0;i<vertices.size();i++)
 		vertices[i].point=vertices[i].point/scale-translate;
 
-	if( Manifold.set )
+	if(Manifold.set)
 	{
 		std::vector<std::vector<int> > triangles;
 		double t=Time();
@@ -329,6 +295,12 @@ int main(int argc,char* argv[])
 		printf("Vertices: %d\n",vertices.size());
 		printf("Polygons: %d\n",polygons.size());
 	}
+
+	//printf("Extracting iso-surface ...\n");
+	//t=Time();
+	//PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/200,0.5f,0.5f,0.5f);
+	//printf("Got iso-surface in: %f\n", Time()-t);
+	//PolygonizerHelper::save("mesh2.ply",scale,translate);
 
 	return EXIT_SUCCESS;
 }
