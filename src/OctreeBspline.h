@@ -38,7 +38,8 @@ class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 	void getCoeffIndicesWeightsValueFromPos(const Eigen::Matrix<float,3,3>& B,const int minBsplineDepth,const int maxBsplineDepth,const float pos[3], 
 		std::vector<int>& coeffIndices,std::vector<float>& coeffWeights,float& value);
 
-	void solveAbx(const Eigen::SparseMatrix<float>& A, const Eigen::Matrix<float,Eigen::Dynamic,1>& b, Eigen::Matrix<float,Eigen::Dynamic,1>& x);
+	void getSmoothMatrix(const Eigen::Matrix<float,3,3>& B,const Eigen::Matrix<float,3,3>& dB,const Eigen::Matrix<float,3,3>& ddB,
+		const int minBsplineDepth,const int maxBsplineDepth, Eigen::SparseMatrix<float> &smoothMatrix);
 	
 	// Set children according to isoValue until reaching maxDepth
 	void setChildren(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& useFull);

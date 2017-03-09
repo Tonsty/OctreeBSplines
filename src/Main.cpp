@@ -251,9 +251,9 @@ int main(int argc,char* argv[])
 	{
 		t=Time();
 		printf("Fitting data ...\n");
-		octreeBspline.directBsplineFitting();
+		//octreeBspline.directBsplineFitting();
+		octreeBspline.multigridBsplineFitting();
 		printf("Got fitted in: %f\n", Time()-t);
-		//octreeBspline.multigridBsplineFitting();
 		//octreeBspline.exportVTKData(scale,translate);
 	}
 
@@ -262,7 +262,7 @@ int main(int argc,char* argv[])
 
 	printf("Estracting iso-surface ...\n");
 	t=Time();
-	octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
+	//octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
 	octreeBspline.getIsoSurface(0,vertices,polygons,FullCaseTable.set);
 	printf("Got iso-surface in: %f\n",Time()-t);
 
@@ -296,11 +296,11 @@ int main(int argc,char* argv[])
 		printf("Polygons: %d\n",polygons.size());
 	}
 
-	//printf("Extracting iso-surface ...\n");
-	//t=Time();
-	//PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/200,0.5f,0.5f,0.5f);
-	//printf("Got iso-surface in: %f\n", Time()-t);
-	//PolygonizerHelper::save("mesh2.ply",scale,translate);
+	printf("Extracting iso-surface ...\n");
+	t=Time();
+	PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.02f,1.0f/200,0.5f,0.5f,0.5f);
+	printf("Got iso-surface in: %f\n", Time()-t);
+	PolygonizerHelper::save("mesh2.ply",scale,translate);
 
 	return EXIT_SUCCESS;
 }

@@ -2,11 +2,11 @@
 #include "polygonizer.h"
 #include <stdio.h>
 
-int triangle2(int i1,int i2,int i3,VERTICES vertices);
-char* polygonize(double (*function)(double,double,double),double size,int bounds,double x,double y,double z,int (*triproc)(int,int,int,VERTICES),int mode);
-extern int gntris;
-extern VERTICES gvertices;
-extern TRIANGLES gtriangles;
+extern "C" int triangle2(int i1,int i2,int i3,VERTICES vertices);
+extern "C" char* polygonize(double (*function)(double,double,double),double size,int bounds,double x,double y,double z,int (*triproc)(int,int,int,VERTICES),int mode);
+extern "C" int gntris;
+extern "C" VERTICES gvertices;
+extern "C" TRIANGLES gtriangles;
 
 Function *gf;
 float gisovalue=0.0;

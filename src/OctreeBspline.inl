@@ -14,7 +14,7 @@ int OctreeBspline<NodeData,Real,VertexData>::set2(const std::vector<Vertex>& ver
 	MeshInfo<double> &mInfo=mInfoGlobal;
 	std::vector<int> myVertices;
 
-	mInfo.set2(vertices,polygons,Real(1.05),translate,scale,noTransform);
+	mInfo.set2(vertices,polygons,Real(1.1),translate,scale,noTransform);
 	myVertices.resize(mInfo.vertices.size());
 	for(int i=0;i<int(mInfo.vertices.size());i++) myVertices[i]=i;
 
@@ -123,6 +123,20 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren2(OctNode<NodeData,Real>
 	if(!vindices.size())		return -1;
 	if(nIdx.depth==maxDepth)	return -1;
 
+	if(flatness>0)
+	{
+		MeshReal area;
+		Point3D<MeshReal> mc;
+		area=0;
+		mc[0]=mc[1]=mc[2]=0;
+		for(size_t i=0;i<vindices.size();i++)
+		{
+			area+=Length(mInfo.vertexNormals[vindices[i]]);
+			mc+=mInfo.vertexNormals[vindices[i]];
+		}
+		if(Length(mc)/area>flatness) return -1;
+	}
+
 	if(!node->children)	node->initChildren();
 	OctNode<NodeData,Real>::CenterAndWidth(nIdx,ctr,w);
 
@@ -157,11 +171,17 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren2(OctNode<NodeData,Real>
 			break;
 		}
 		key=OctNode<NodeData,Real>::EdgeIndex(nIdx,i,maxDepth);
-		if(cornerValues.find(key)==cornerValues.end())
+		auto it=cornerValues.find(key);
+		if(it==cornerValues.end())
 		{
 			setDistanceAndNormal2(vindices,mInfo,p,dist,n);
 			cornerValues[key]=VertexData(dist,n);
 		}
+		//setDistanceAndNormal2(vindices,mInfo,p,dist,n);
+		//key=OctNode<NodeData,Real>::EdgeIndex(nIdx,i,maxDepth);
+		//auto it=cornerValues.find(key);
+		//if(it==cornerValues.end() || fabs(it->second.value())>fabs(dist))
+		//	cornerValues[key]=VertexData(dist,n);
 	}
 
 	// set the face mid-points
@@ -172,11 +192,17 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren2(OctNode<NodeData,Real>
 		p=ctr;
 		p[dir]+=-w/2+w*off;
 		key=OctNode<NodeData,Real>::FaceIndex(nIdx,i,maxDepth);
-		if(cornerValues.find(key)==cornerValues.end())
+		auto it=cornerValues.find(key);
+		if(it==cornerValues.end())
 		{
 			setDistanceAndNormal2(vindices,mInfo,p,dist,n);
 			cornerValues[key]=VertexData(dist,n);
 		}
+		//setDistanceAndNormal2(vindices,mInfo,p,dist,n);
+		//key=OctNode<NodeData,Real>::FaceIndex(nIdx,i,maxDepth);
+		//auto it=cornerValues.find(key);
+		//if(it==cornerValues.end() || fabs(it->second.value())>fabs(dist))
+		//	cornerValues[key]=VertexData(dist,n);
 	}
 
 	int retCount=0;
@@ -191,6 +217,7 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren2(OctNode<NodeData,Real>
 		}
 
 		std::vector<int> myVerticesExp;
+		std::vector<int> myVertices;
 		for(size_t j=0;j<vindices.size();j++)
 		{
 			Point3D<MeshReal> t = mInfo.vertices[vindices[j]];
@@ -199,23 +226,16 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren2(OctNode<NodeData,Real>
 			ctr2[0]=ctr[0];
 			ctr2[1]=ctr[1];
 			ctr2[2]=ctr[2];
-			if(PointInCube(ctr2,w2,t)) myVerticesExp.push_back(vindices[j]);
+			if(PointInCube(ctr2,w2*4,t))
+			{
+				myVerticesExp.push_back(vindices[j]);
+				if(PointInCube(ctr2,w2,t)) myVertices.push_back(vindices[j]);
+			}
 		}
-		//std::vector<int> myVertices;
-		//for (size_t j=0;j<myVerticesExp.size();j++)
-		//{
-		//	Point3D<MeshReal> t = mInfo.vertices[myVerticesExp[j]];
-		//	Point3D<MeshReal> ctr2;
-		//	MeshReal w2=w;
-		//	ctr2[0]=ctr[0];
-		//	ctr2[1]=ctr[1];
-		//	ctr2[2]=ctr[2];
-		//	if(PointInCube(ctr2,w2,t)) myVertices.push_back(myVerticesExp[j]);
-		//}
-		
-		if(myVerticesExp.size() && setChildren2(&node->children[i],nIdx.child(i),myVerticesExp,mInfo,maxDepth,setCenter,flatness,triangleMap)>0) retCount++;
+		if(myVertices.size() && setChildren2(&node->children[i],nIdx.child(i),myVerticesExp,mInfo,maxDepth,setCenter,flatness,triangleMap)>0) retCount++;
 	}
-	if(maxBsplineDepth>0 && ((nIdx.depth==maxBsplineDepth-1) || (nIdx.depth<maxBsplineDepth-1 && retCount<8)))
+	//if(maxBsplineDepth>0 && ((nIdx.depth==maxBsplineDepth-1) || (nIdx.depth<maxBsplineDepth-1 && retCount<8)))
+	if(maxBsplineDepth>0 && (nIdx.depth<=maxBsplineDepth-1))
 	{
 		int bsplineOffset[3];
 		int bsplineDepth=nIdx.depth+1;
@@ -274,6 +294,8 @@ void OctreeBspline<NodeData,Real,VertexData>::getCoeffIndicesWeightsValueFromPos
 	std::vector<int>& coeffIndices,std::vector<float>& coeffWeights,float& value)
 {
 	value=0;
+	coeffIndices.clear();
+	coeffWeights.clear();
 	if(maxBsplineDepth<minBsplineDepth || minBsplineDepth<1) return;
 	for(int bsplineDepth=minBsplineDepth;bsplineDepth<=maxBsplineDepth;bsplineDepth++)
 	{
@@ -287,9 +309,9 @@ void OctreeBspline<NodeData,Real,VertexData>::getCoeffIndicesWeightsValueFromPos
 		u_mat<<1,1,1,u[0],u[1],u[2],u[0]*u[0],u[1]*u[1],u[2]*u[2];
 		Eigen::Matrix<float,3,3> Bu=B*u_mat;
 
-		for(int i=0;i<=2;i++)
-			for(int j=0;j<=2;j++)
-				for(int k=0;k<=2;k++)
+		for(int i=0;i<3;i++)
+			for(int j=0;j<3;j++)
+				for(int k=0;k<3;k++)
 				{
 					int bsplineOffset[3];
 					bsplineOffset[0]=bposInt[0]-2+i;
@@ -337,45 +359,14 @@ void OctreeBspline<NodeData,Real,VertexData>::setCoeffValuesFromCompressedKeys(
 	}
 }
 
-template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::solveAbx(
-	const Eigen::SparseMatrix<float>& A, 
-	const Eigen::Matrix<float,Eigen::Dynamic,1>& b, 
-	Eigen::Matrix<float,Eigen::Dynamic,1>& x)
-{
-	typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic> Matrix;
-	typedef Eigen::SparseMatrix<float> SparseMatrix;
-
-	if(A.cols()<500) 
-	{
-		Eigen::ColPivHouseholderQR<Matrix> qr;
-		//qr.compute((A.transpose()*A).toDense());
-		//x=qr.solve(A.transpose()*b);
-		qr.compute(A.toDense());
-		x=qr.solve(b);
-	}
-	else
-	{
-		Eigen::LeastSquaresConjugateGradient<SparseMatrix> cg;
-		//cg.compute(A.transpose()*A);
-		//x=cg.solve(A.transpose()*b);
-		cg.compute(A);
-		x=cg.solve(b);
-		std::cout << "cg.iterations = " << cg.iterations() << std::endl;
-		std::cout << "cg.maxIterations = " << cg.maxIterations() << std::endl;
-		std::cout << "cg.tolerance = " << cg.tolerance() << std::endl;
-	}
-	//std::cout<<"x=\n"<<x<<std::endl; 
-}
+typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic> Matrix;
+typedef Eigen::Matrix<float,Eigen::Dynamic,1> Vector;
+typedef Eigen::SparseMatrix<float> SparseMatrix;
+typedef Eigen::Triplet<float> Triplet;
 
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::directBsplineFitting()
 {
-	typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic> Matrix;
-	typedef Eigen::Matrix<float,Eigen::Dynamic,1> Vector;
-	typedef Eigen::SparseMatrix<float> SparseMatrix;
-	typedef Eigen::Triplet<float> Triplet;
-
 	int maxDepth=this->maxDepth;
 	int maxBsplineDepth=this->maxBsplineDepth;
 
@@ -428,7 +419,12 @@ void OctreeBspline<NodeData,Real,VertexData>::directBsplineFitting()
 //#endif
 
 	Vector x;
-	solveAbx(A,b,x);
+	//Eigen::ConjugateGradient<SparseMatrix> cg;
+	//cg.compute(A.transpose()*A);
+	//x=cg.solve(b);
+	Eigen::LeastSquaresConjugateGradient<SparseMatrix> lscg;
+	lscg.compute(A);
+	x=lscg.solve(b);
 	std::cout<<"finised solving"<<std::endl;
 
 	for(int bsplineDepth=1;bsplineDepth<=maxBsplineDepth;bsplineDepth++)
@@ -478,17 +474,19 @@ void OctreeBspline<NodeData,Real,VertexData>::getCornerKeysFromCompressedKeys(co
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
 {
-	typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic> Matrix;
-	typedef Eigen::Matrix<float,Eigen::Dynamic,1> Vector;
-	typedef Eigen::SparseMatrix<float> SparseMatrix;
-	typedef Eigen::Triplet<float> Triplet;
-
 	int maxDepth=this->maxDepth;
 	int maxBsplineDepth=this->maxBsplineDepth;
 
 	Eigen::Matrix<float,3,3> B;
 	B<<1,-2,1,1,2,-2,0,0,1;
 	B/=2;
+	Eigen::Matrix<float,3,3> dB;
+	dB<<-2,2,0,2,-4,0,0,2,0;
+	dB/=2;
+	Eigen::Matrix<float,3,3> ddB;
+	ddB<<2,0,0,-4,0,0,2,0,0;
+	ddB/=2;
+
 	float unitLen=(float)1.0/(1<<(maxDepth+1));
 
 	coeffValues.resize(maxBsplineDepth+1);
@@ -533,8 +531,16 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
 			SparseMatrix A(q2, p2);
 			A.setFromTriplets(A_triplets.begin(),A_triplets.end());
 			Vector x;
-			solveAbx(A,b,x);
-			std::cout<<"finised solving at bsplineDepth "<<bsplineDepth<<std::endl;
+			//solveAbx(A,b,x);
+			//std::cout<<"finised pre-solving at bsplineDepth "<<bsplineDepth<<std::endl;
+
+			SparseMatrix smoothMatrix;
+			getSmoothMatrix(B,dB,ddB,bsplineDepth,bsplineDepth,smoothMatrix);
+			Eigen::ConjugateGradient<SparseMatrix> solver;
+			solver.compute(A.transpose()*A+0.01*bsplineDepth*bsplineDepth*q2*smoothMatrix);
+			x=solver.solve(A.transpose()*b);
+
+			//std::cout<<"finised solving at bsplineDepth "<<bsplineDepth<<std::endl;
 
 			for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++)
 			{
@@ -546,20 +552,26 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
 	}
 	std::cout<<"Num. of compressedKeys is "<<r<<std::endl;
 	std::cout<<"Num. of coeffValues is "<<p<<std::endl;
+
+	for(auto it=cornerValues.begin();it!=cornerValues.end();it++,q++)
+	{
+		long long cornerKey=it->first;
+		float pos[3];
+		getPosFromCornerKey(cornerKey,unitLen,pos);
+		//std::cout<<q<<" "<<pos[0]<<" "<<pos[1]<<" "<<pos[2]<<std::endl;
+		it->second.v=eval(pos);
+	}
 }
 
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::exportVTKData(const float scale, const Point3D<float> translate)
 {
-	typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic> Matrix;
-	typedef Eigen::Matrix<float,Eigen::Dynamic,1> Vector;
-
 	Eigen::Matrix<float,3,3> B;
 	B<<1,-2,1,1,2,-2,0,0,1;
 	B/=2;
 
 #ifndef _DEBUG
-	const int dim[3] = {256,256,256};
+	const int dim[3] = {128,128,128};
 #else
 	const int dim[3] = {8,8,8};
 #endif
@@ -568,13 +580,9 @@ void OctreeBspline<NodeData,Real,VertexData>::exportVTKData(const float scale, c
 		for(int yi = 0; yi < dim[1]; yi++) 
 			for (int xi = 0; xi < dim[0]; xi++) 
 			{
-				float pos[3]={(float)xi/dim[0]/2+0.25,(float)yi/dim[1]/2,(float)zi/dim[2]/2+0.25};
-				std::vector<int> coeffIndices;
-				std::vector<float> coeffWeights;
-				float value;
-				getCoeffIndicesWeightsValueFromPos(B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,value);
+				float pos[3]={(float)xi/dim[0],(float)yi/dim[1],(float)zi/dim[2]};
 				int index=xi+yi*dim[0]+zi*dim[0]*dim[1];
-				volume(index)=value;
+				volume(index)=eval(pos);
 			}
 	Eigen::Matrix<double,4,4> transform=Eigen::Matrix<double,4,4>::Identity();
 	transform(0,0)=transform(1,1)=transform(2,2)=(float)1.0/scale;
@@ -590,7 +598,6 @@ void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(const Real
 	OctNode<NodeData,Real>* temp;
 	Real cValues[Cube::CORNERS];
 
-	// Get the values at the leaf nodes and propogate up to the parents
 	OctNode<NodeData,Real>::NodeIndex nIdx;
 	temp=tree.nextLeaf(NULL,nIdx);
 	while(temp)
@@ -696,4 +703,112 @@ void OctreeBspline<NodeData,Real,VertexData>::setChildren(OctNode<NodeData,Real>
 		for(int i=0;i<Cube::CORNERS;i++)
 			setChildren(&node->children[i],nIdx.child(i),isoValue,useFull);
 	}
+}
+
+Vector MULT(const Vector &U,const Vector &V) 
+{
+	Vector W=Vector::Zero(U.size()+V.size()-1);
+	for(int i=0;i<U.size();i++) 
+		for (int j=0;j<V.size();j++)
+			W(i+j) += U(i)*V(j);
+	return W;
+}
+
+Matrix INTofMULT(const Matrix &A, const Matrix &B) 
+{
+	Matrix C=Matrix::Zero(A.rows(),B.rows());
+	for (int i=0;i<A.rows();i++) 
+		for (int j=0;j<B.rows();j++) 
+		{
+			Vector W=MULT(A.row(i),B.row(j));
+			//std::cerr<<"W=\n"<<W<<std::endl; 
+			float integral_sum=0;
+			for(int k=0;k<W.size();k++)
+				integral_sum += W(k)/(k+1);
+			C(i,j) = integral_sum;
+		}
+	return C;
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matrix<float,3,3>& B,const Eigen::Matrix<float,3,3>& dB,const Eigen::Matrix<float,3,3>& ddB,
+	const int minBsplineDepth,const int maxBsplineDepth, Eigen::SparseMatrix<float> &smoothMatrix)
+{
+	assert(minBsplineDepth==maxBsplineDepth);
+
+	Matrix IB2,IdB2,IddB2;
+	IB2=INTofMULT(B,B);
+	IdB2=INTofMULT(dB,dB);
+	IddB2=INTofMULT(ddB,ddB);
+
+	Eigen::Matrix<float,5,1> hashtableIB2,hashtableIdB2,hashtableIddB2;
+	hashtableIB2=Eigen::Matrix<float,5,1>::Zero();
+	hashtableIdB2=Eigen::Matrix<float,5,1>::Zero();
+	hashtableIddB2=Eigen::Matrix<float,5,1>::Zero();
+	for(int i=2;i>=-2;i--)
+		for(int j=0;j<3;j++)
+			if(i+j>=0 && i+j<3)
+			{
+				hashtableIB2(2-i)+=IB2(j,i+j);
+				hashtableIdB2(2-i)+=IdB2(j,i+j);
+				hashtableIddB2(2-i)+=IddB2(j,i+j);
+			}
+
+	float hashtableWeights[5][5][5];
+	for(int i=0;i<5;i++)
+		for(int j=0;j<5;j++)
+			for(int k=0;k<5;k++)
+			{
+				hashtableWeights[i][j][k]=hashtableIddB2(i)*hashtableIB2(j)*hashtableIB2(k)
+					+hashtableIB2(i)*hashtableIddB2(j)*hashtableIB2(k)
+					+hashtableIB2(i)*hashtableIB2(j)*hashtableIddB2(k)
+					+hashtableIdB2(i)*hashtableIdB2(j)*hashtableIB2(k)*2
+					+hashtableIdB2(i)*hashtableIB2(j)*hashtableIdB2(k)*2
+					+hashtableIB2(i)*hashtableIdB2(j)*hashtableIdB2(k)*2;
+			}
+
+	std::vector<Triplet> smoothMatrix_triplets;
+	int bsplineDepth=minBsplineDepth;
+	for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++)
+	{
+		long long coeffKey=it->first;
+		int bsplineOffset[3];
+		bsplineOffset[0]=coeffKey&0x7fff;
+		bsplineOffset[1]=(coeffKey>>15)&0x7fff;
+		bsplineOffset[2]=(coeffKey>>30)&0x7fff;
+
+		for(int i=0;i<5;i++)
+			for(int j=0;j<5;j++)
+				for(int k=0;k<5;k++)
+				{
+					int bsplineOffset2[3];
+					bsplineOffset2[0]=bsplineOffset[0]-2+i;
+					bsplineOffset2[1]=bsplineOffset[1]-2+j;
+					bsplineOffset2[2]=bsplineOffset[2]-2+k;
+					if(bsplineOffset2[0]>=0 && bsplineOffset2[1]>=0 && bsplineOffset2[2]>=0)
+					{
+						long long coeffKey2=(long long)(bsplineOffset2[0]) | (long long)(bsplineOffset2[1])<<15 | (long long)(bsplineOffset2[2])<<30;
+						auto it2=coeffValues[bsplineDepth].find(coeffKey2);
+						if(it2!=coeffValues[bsplineDepth].end())
+						{
+							int row=it->second.first;
+							int col=it2->second.first;
+							if(col>=row)
+							{
+								float weight=hashtableWeights[i][j][k];
+								smoothMatrix_triplets.push_back(Triplet(row,col,weight));
+								if(col>row)
+									smoothMatrix_triplets.push_back(Triplet(col,row,weight));
+							}
+						}
+					}
+				}
+	}
+	smoothMatrix.resize(coeffValues[bsplineDepth].size(),coeffValues[bsplineDepth].size());
+	smoothMatrix.setFromTriplets(smoothMatrix_triplets.begin(),smoothMatrix_triplets.end());
+
+	float unitLen=(float)1.0/(1<<bsplineDepth);
+	smoothMatrix*=(unitLen*unitLen*unitLen);
+
+	//std::cout<<"smoothMatrix=\n"<<smoothMatrix.toDense()<<std::endl;
 }
