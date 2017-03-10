@@ -1,6 +1,192 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include "Kdtree.h"
 #include "vtkHelper.h"
+
+template<class NodeData,class Real,class VertexData>
+template<class Vertex>
+int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,
+	const int& maxDepth,const int& setCenter,const Real& flatness,
+	Point3D<Real>& translate,Real& scale,const int& noTransform)
+{
+	this->maxDepth=maxDepth;
+	OctNode<NodeData,Real>::NodeIndex nIdx;
+
+	MeshInfo<Real> &mInfo=mInfoGlobal;
+	mInfo.set2(vertices,polygons,Real(1.1),translate,scale,noTransform);
+	std::vector<int> myVertices;
+	for(int i=0;i<mInfo.vertices.size();i++) myVertices.push_back(i);
+
+	cornerValues.clear();
+	for(int c=0;c<Cube::CORNERS;c++)
+		cornerValues[OctNode<NodeData,Real>::CornerIndex(nIdx,c,maxDepth)]=VertexData(); //allocate hash-table entry
+
+	printf("Allocating cornerValues ...\n");
+	compressedKeys.resize(maxBsplineDepth+1);
+	setChildren3(&tree,nIdx,myVertices,mInfo,maxDepth,setCenter,flatness);
+	printf("Finished allocating\n");
+
+	KDTree<Real> kdtree;
+	kdtree.setInputPoints(mInfo.vertices);
+	Real unitLen=(Real)1.0/(1<<(maxDepth+1));
+	std::vector<Point3D<Real> > queries;
+	for(auto it=cornerValues.begin();it!=cornerValues.end();it++)
+	{
+		long long cornerKey=it->first;
+		Point3D<Real> point;
+		getPosFromCornerKey(cornerKey,unitLen,point.coords);
+		queries.push_back(point);
+	}
+
+	std::vector<std::vector<int> > indices; 
+	std::vector<std::vector<Real> > dists;
+	kdtree.KnnSearch(queries,indices,dists,1);
+
+	Real dist;
+	Point3D<Real> n;
+	int i=0;
+	for(auto it=cornerValues.begin();it!=cornerValues.end();it++,i++)
+	{
+		Point3D<Real> point=queries[i];
+		Point3D<Real> point2=mInfo.vertices[indices[i][0]];
+		Point3D<Real> normal2=mInfo.vertexNormals[indices[i][0]];
+		setDistanceAndNormal3(point,point2,normal2,dist,n);
+		it->second=VertexData(dist,n);
+	}
+
+	//scale=1.f;
+	//translate[0]=translate[1]=translate[2]=-0.5;
+	//Point3D<Real> center;
+	//center[0]=(Real)0.5;
+	//center[1]=(Real)0.5;
+	//center[2]=(Real)0.5;
+	//for(auto it=cornerValues.begin();it!=cornerValues.end();it++)
+	//{
+	//	long long cornerKey=it->first;
+	//	int idx[3];
+	//	idx[0]=cornerKey&0x7fff;
+	//	idx[1]=(cornerKey>>15)&0x7fff;
+	//	idx[2]=(cornerKey>>30)&0x7fff;
+	//	idx[0]>>=(maxDepth+1-maxDepth);
+	//	idx[1]>>=(maxDepth+1-maxDepth);
+	//	idx[2]>>=(maxDepth+1-maxDepth);
+	//	Point3D<Real> pos;
+	//	pos[0]=(Real)idx[0]/(1<<(maxDepth));
+	//	pos[1]=(Real)idx[1]/(1<<(maxDepth));
+	//	pos[2]=(Real)idx[2]/(1<<(maxDepth));
+	//	it->second.v=Distance(pos,center)-(Real)0.5;
+	//}
+
+	return 1;
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::setDistanceAndNormal3(const Point3D<Real>& p,const Point3D<Real>& p2,const Point3D<Real>& n2,Real& dist,Point3D<Real>& n)
+{
+	dist=Distance(p,p2);
+	n=(p-p2)/dist;
+
+	//only points locating inside narrow band are computed for point to plane distance
+	Real narrow_band=(Real)0.5;
+	if (dist<narrow_band) 
+	{
+		//point to plane distance
+		dist=DotProduct(p-p2,n2); 
+		//point to plane gradient
+		n=n2; 
+	}
+	else 
+	{
+		if(DotProduct(p-p2,n2)<0)
+		{
+			dist=-dist;
+			n*=-1;
+		}
+	}
+}
+
+template<class NodeData,class Real,class VertexData>
+template<class MeshReal>
+int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>* node,
+	const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
+	const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,
+	const int& maxDepth,const int& setCenter,
+	const Real& flatness,
+	stdext::hash_map<long long,std::vector<int>*>* triangleMap)
+{
+	long long key;
+	Real w;
+	Point3D<Real> ctr;
+	if(!vindices.size())		return -1;
+	if(nIdx.depth==maxDepth)	return -1;
+
+	if(flatness>0 && nIdx.depth>0)
+	{
+		MeshReal area;
+		Point3D<MeshReal> mc;
+		area=0;
+		mc[0]=mc[1]=mc[2]=0;
+		for(size_t i=0;i<vindices.size();i++)
+		{
+			area+=Length(mInfo.vertexNormals[vindices[i]]);
+			mc+=mInfo.vertexNormals[vindices[i]];
+		}
+		if(Length(mc)/area>flatness) return -1;
+	}
+
+	if(!node->children)	node->initChildren();
+	OctNode<NodeData,Real>::CenterAndWidth(nIdx,ctr,w);
+
+	// Set the center
+	key=OctNode<NodeData,Real>::CenterIndex(nIdx,maxDepth);
+	cornerValues[key]=VertexData();
+
+	// Set the edge mid-points
+	for(int i=0;i<Cube::EDGES;i++)
+	{
+		key=OctNode<NodeData,Real>::EdgeIndex(nIdx,i,maxDepth);
+		cornerValues[key]=VertexData();
+	}
+
+	// set the face mid-points
+	for(int i=0;i<Cube::FACES;i++)
+	{
+		key=OctNode<NodeData,Real>::FaceIndex(nIdx,i,maxDepth);
+		cornerValues[key]=VertexData();
+	}
+
+	int retCount=0;
+	for(int i=0;i<Cube::CORNERS;i++)
+	{
+		OctNode<NodeData,Real>::CenterAndWidth(nIdx.child(i),ctr,w);
+
+		std::vector<int> myVertices;
+		for(size_t j=0;j<vindices.size();j++)
+		{
+			Point3D<MeshReal> t=mInfo.vertices[vindices[j]];
+			Point3D<MeshReal> ctr2;
+			MeshReal w2=w;
+			ctr2[0]=ctr[0];
+			ctr2[1]=ctr[1];
+			ctr2[2]=ctr[2];
+			if(PointInCube(ctr2,w2,t)) myVertices.push_back(vindices[j]);
+		}
+		if(myVertices.size() && setChildren2(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,triangleMap)>0) retCount++;
+	}
+	//if(maxBsplineDepth>0 && ((nIdx.depth==maxBsplineDepth-1) || (nIdx.depth<maxBsplineDepth-1 && retCount<8)))
+	if(maxBsplineDepth>0 && (nIdx.depth<=maxBsplineDepth-1))
+	{
+		int bsplineOffset[3];
+		int bsplineDepth=nIdx.depth+1;
+		bsplineOffset[0]=nIdx.offset[0]<<1;
+		bsplineOffset[1]=nIdx.offset[1]<<1;
+		bsplineOffset[2]=nIdx.offset[2]<<1;
+
+		long long compressedKey=(long long)(bsplineOffset[0]) | (long long)(bsplineOffset[1])<<15 | (long long)(bsplineOffset[2])<<30;
+		compressedKeys[bsplineDepth].push_back(compressedKey);
+	}
+	return 1;
+}
 
 template<class NodeData,class Real,class VertexData>
 template<class Vertex>
@@ -11,12 +197,20 @@ int OctreeBspline<NodeData,Real,VertexData>::set2(const std::vector<Vertex>& ver
 	this->maxDepth=maxDepth;
 	OctNode<NodeData,Real>::NodeIndex nIdx;
 
-	MeshInfo<double> &mInfo=mInfoGlobal;
+	MeshInfo<float> &mInfo=mInfoGlobal;
 	std::vector<int> myVertices;
 
 	mInfo.set2(vertices,polygons,Real(1.1),translate,scale,noTransform);
 	myVertices.resize(mInfo.vertices.size());
 	for(int i=0;i<int(mInfo.vertices.size());i++) myVertices[i]=i;
+
+	KDTree<float> kdtree;
+	kdtree.setInputPoints(mInfo.vertices);
+	std::vector<Point3D<Real> > queries;
+	queries.push_back(RandomBallPoint<Real>());
+	std::vector<std::vector<int> > indices; 
+	std::vector<std::vector<Real> > dists;
+	kdtree.KnnSearch(queries,indices,dists,1);
 
 	cornerValues.clear();
 	Real dist;
@@ -57,22 +251,19 @@ void OctreeBspline<NodeData,Real,VertexData>::setDistanceAndNormal2(const std::v
 	pp[1]=p[1];
 	pp[2]=p[2];
 	size_t closest;
+	MeshReal minSqDist;
 	for(size_t i=0;i<vindices.size();i++) 
 	{
 		MeshReal temp;
 		for(int j=0;j<3;j++) t[j]=mInfo.vertices[vindices[i]][j];
-
-		//point to point distance
-		temp=Distance(pp,t); 
-		if(!i || temp<dist )
+		temp=SquareDistance(pp,t); 
+		if(!i || temp<minSqDist ) 
 		{
 			closest=i;
-			dist=(Real)temp;
+			minSqDist=temp;
 		}
 	}
 	Point3D<MeshReal> nn;
-	int vFlag;
-
 	closest=vindices[closest];
 
 	for(int i=0;i<3;i++) 
@@ -81,31 +272,7 @@ void OctreeBspline<NodeData,Real,VertexData>::setDistanceAndNormal2(const std::v
 		nn[i]=mInfo.vertexNormals[closest][i];
 	}
 
-	//only points locating inside narrow band consider point to plane distance
-	Real narrow_band=(Real)0.1;
-	Point3D<MeshReal> n2;
-	if (dist<narrow_band) {
-		n2=NearestPointOnPlane(pp,t,nn,vFlag);
-		//point to plane distance
-		Real dist2=(Real)Distance(pp,n2); 
-		dist = dist2;
-		//point to plane orientation
-		n2=(pp-n2)/dist2; 
-	}
-	else 
-	{
-		//point to point orientation
-		n2 = (pp-t)/Distance(pp,t);
-	}
-
-	if(DotProduct(nn,n2)<0)
-	{
-		dist=-dist;
-		n2*=-1;
-	}
-	n[0]=(Real)n2[0];
-	n[1]=(Real)n2[1];
-	n[2]=(Real)n2[2];
+	setDistanceAndNormal3(pp,t,nn,dist,n);
 }
 
 template<class NodeData,class Real,class VertexData>
@@ -220,7 +387,7 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren2(OctNode<NodeData,Real>
 		std::vector<int> myVertices;
 		for(size_t j=0;j<vindices.size();j++)
 		{
-			Point3D<MeshReal> t = mInfo.vertices[vindices[j]];
+			Point3D<MeshReal> t=mInfo.vertices[vindices[j]];
 			Point3D<MeshReal> ctr2;
 			MeshReal w2=w;
 			ctr2[0]=ctr[0];
@@ -494,6 +661,7 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
 	for(int bsplineDepth=1;bsplineDepth<=maxBsplineDepth;bsplineDepth++)
 	{
 		setCoeffValuesFromCompressedKeys(bsplineDepth,compressedKeys,coeffValues);
+		if(bsplineDepth==1) continue;
 		r+=(int)compressedKeys[bsplineDepth].size();
 		p+=(int)coeffValues[bsplineDepth].size();
 		std::cout<<"Num. of compressedKeys at bsplineDepth "<<bsplineDepth<<" is "<<compressedKeys[bsplineDepth].size()<<std::endl;
@@ -537,7 +705,7 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
 			SparseMatrix smoothMatrix;
 			getSmoothMatrix(B,dB,ddB,bsplineDepth,bsplineDepth,smoothMatrix);
 			Eigen::ConjugateGradient<SparseMatrix> solver;
-			solver.compute(A.transpose()*A+0.01*bsplineDepth*bsplineDepth*q2*smoothMatrix);
+			solver.compute(A.transpose()*A+0.0*bsplineDepth*bsplineDepth*q2*smoothMatrix);
 			x=solver.solve(A.transpose()*b);
 
 			//std::cout<<"finised solving at bsplineDepth "<<bsplineDepth<<std::endl;
@@ -602,43 +770,31 @@ void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(const Real
 	temp=tree.nextLeaf(NULL,nIdx);
 	while(temp)
 	{
-		for(int i=0;i<Cube::CORNERS;i++)
-		{
-			if(cornerValues.find(OctNode<NodeData,Real>::CornerIndex(nIdx,i,maxDepth))==cornerValues.end())
-				fprintf(stderr,"Could not find value in corner value table!\n");
-			cValues[i]=cornerValues[OctNode<NodeData,Real>::CornerIndex(nIdx,i,maxDepth)].value();
-		}
-		if(useFull)
-			temp->nodeData.mcIndex=MarchingCubes::GetFullIndex(cValues,isoValue);
-		else
-			temp->nodeData.mcIndex=MarchingCubes::GetIndex(cValues,isoValue);
-
 		OctNode<NodeData,Real>* temp2=temp;
 		OctNode<NodeData,Real>::NodeIndex nIdx2=nIdx;
 		temp=tree.nextLeaf(temp,nIdx);
-		if(MarchingCubes::HasRoots(temp2->nodeData.mcIndex) && nIdx2.depth<maxDepth)
-			setChildren(temp2,nIdx2,isoValue,useFull);
+		if(nIdx2.depth<maxDepth) setMCLeafNodeToMaxDepth(temp2,nIdx2,isoValue,useFull);
 	}
 }
 
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::setChildren(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& useFull)
+void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& useFull)
 {
-	if(nIdx.depth==maxDepth)
+	if(nIdx.depth==maxDepth) return;
+
+	Real cValues[Cube::CORNERS];
+	for(int i=0;i<Cube::CORNERS;i++)
 	{
-		Real cValues[Cube::CORNERS];
-		for(int i=0;i<Cube::CORNERS;i++)
-		{
-			if(cornerValues.find(OctNode<NodeData,Real>::CornerIndex(nIdx,i,maxDepth))==cornerValues.end())
-				fprintf(stderr,"Could not find value in corner value table!\n");
-			cValues[i]=cornerValues[OctNode<NodeData,Real>::CornerIndex(nIdx,i,maxDepth)].value();
-		}
-		if(useFull)
-			node->nodeData.mcIndex=MarchingCubes::GetFullIndex(cValues,isoValue);
-		else
-			node->nodeData.mcIndex=MarchingCubes::GetIndex(cValues,isoValue);
+		if(cornerValues.find(OctNode<NodeData,Real>::CornerIndex(nIdx,i,maxDepth))==cornerValues.end())
+			fprintf(stderr,"Could not find value in corner value table!\n");
+		cValues[i]=cornerValues[OctNode<NodeData,Real>::CornerIndex(nIdx,i,maxDepth)].value();
 	}
+	if(useFull)
+		node->nodeData.mcIndex=MarchingCubes::GetFullIndex(cValues,isoValue);
 	else
+		node->nodeData.mcIndex=MarchingCubes::GetIndex(cValues,isoValue);
+
+	if(MarchingCubes::HasRoots(node->nodeData.mcIndex))
 	{
 		long long key;
 		Real w,dist;
@@ -680,7 +836,7 @@ void OctreeBspline<NodeData,Real,VertexData>::setChildren(OctNode<NodeData,Real>
 			key=OctNode<NodeData,Real>::EdgeIndex(nIdx,i,maxDepth);
 			if(cornerValues.find(key)==cornerValues.end())
 			{
-				dist=this->eval(ctr.coords);
+				dist=this->eval(p.coords);
 				cornerValues[key]=VertexData(dist,n);
 			}
 		}
@@ -695,13 +851,13 @@ void OctreeBspline<NodeData,Real,VertexData>::setChildren(OctNode<NodeData,Real>
 			key=OctNode<NodeData,Real>::FaceIndex(nIdx,i,maxDepth);
 			if(cornerValues.find(key)==cornerValues.end())
 			{
-				dist=this->eval(ctr.coords);
+				dist=this->eval(p.coords);
 				cornerValues[key]=VertexData(dist,n);
 			}
 		}
 
 		for(int i=0;i<Cube::CORNERS;i++)
-			setChildren(&node->children[i],nIdx.child(i),isoValue,useFull);
+			setMCLeafNodeToMaxDepth(&node->children[i],nIdx.child(i),isoValue,useFull);
 	}
 }
 

@@ -226,7 +226,6 @@ int main(int argc,char* argv[])
 	typedef OctreeBspline<MyNodeData<VertexValue<float>,float>,float,VertexValue<float>> OctBspline;
 	OctBspline octreeBspline;
 	octreeBspline.maxBsplineDepth=Bspline.value;
-	//VertexValue<float>::f=(Function*)(&octreeBspline);
 
 	int ft;
 	std::vector<MyPlyVertex> vertices;
@@ -242,7 +241,7 @@ int main(int argc,char* argv[])
 	printf("maxDepth: %d\n", MaxDepth.value);
 	printf("maxBsplineDepth: %d\n", Bspline.value);
 	t=Time();
-	octreeBspline.set2(vertices,polygons,MaxDepth.value,Dual.set,Curvature.value,translate,scale,0);
+	octreeBspline.set3(vertices,polygons,MaxDepth.value,Dual.set,Curvature.value,translate,scale,0);
 	printf("Got signed distance field in: %f\n", Time()-t);
 	printf("Nodes In: %d / %d\n",octreeBspline.tree.nodes(),octreeBspline.tree.leaves());
 	printf("Values In: %d\n",octreeBspline.cornerValues.size());
@@ -257,48 +256,48 @@ int main(int argc,char* argv[])
 		//octreeBspline.exportVTKData(scale,translate);
 	}
 
-	vertices.clear();
-	polygons.clear();
+	//vertices.clear();
+	//polygons.clear();
 
-	printf("Estracting iso-surface ...\n");
-	t=Time();
-	//octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
-	octreeBspline.getIsoSurface(0,vertices,polygons,FullCaseTable.set);
-	printf("Got iso-surface in: %f\n",Time()-t);
+	//printf("Estracting iso-surface ...\n");
+	//t=Time();
+	////octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
+	//octreeBspline.getIsoSurface(0,vertices,polygons,FullCaseTable.set);
+	//printf("Got iso-surface in: %f\n",Time()-t);
 
-	for(size_t i=0;i<vertices.size();i++)
-		vertices[i].point=vertices[i].point/scale-translate;
+	//for(size_t i=0;i<vertices.size();i++)
+	//	vertices[i].point=vertices[i].point/scale-translate;
 
-	if(Manifold.set)
-	{
-		std::vector<std::vector<int> > triangles;
-		double t=Time();
-		PolygonToManifoldTriangleMesh<MyPlyVertex,float>(vertices,polygons,triangles);
-		printf("Converted polygons to triangles in: %f\n",Time()-t);
-		PlyWritePolygons(Out.value,vertices,triangles,ft);
-		printf("Vertices: %d\n",vertices.size());
-		printf("Triangles: %d\n",triangles.size());
-	}
-	else if(TriangleMesh.set)
-	{
-		std::vector<std::vector<int> > triangles;
-		double t=Time();
-		PolygonToTriangleMesh<MyPlyVertex,float>(vertices,polygons,triangles);
-		printf("Converted polygons to triangles in: %f\n",Time()-t);
-		PlyWritePolygons(Out.value,vertices,triangles,ft);
-		printf("Vertices: %d\n",vertices.size());
-		printf("Triangles: %d\n",triangles.size());
-	}
-	else
-	{
-		PlyWritePolygons(Out.value,vertices,polygons,ft);
-		printf("Vertices: %d\n",vertices.size());
-		printf("Polygons: %d\n",polygons.size());
-	}
+	//if(Manifold.set)
+	//{
+	//	std::vector<std::vector<int> > triangles;
+	//	double t=Time();
+	//	PolygonToManifoldTriangleMesh<MyPlyVertex,float>(vertices,polygons,triangles);
+	//	printf("Converted polygons to triangles in: %f\n",Time()-t);
+	//	PlyWritePolygons(Out.value,vertices,triangles,ft);
+	//	printf("Vertices: %d\n",vertices.size());
+	//	printf("Triangles: %d\n",triangles.size());
+	//}
+	//else if(TriangleMesh.set)
+	//{
+	//	std::vector<std::vector<int> > triangles;
+	//	double t=Time();
+	//	PolygonToTriangleMesh<MyPlyVertex,float>(vertices,polygons,triangles);
+	//	printf("Converted polygons to triangles in: %f\n",Time()-t);
+	//	PlyWritePolygons(Out.value,vertices,triangles,ft);
+	//	printf("Vertices: %d\n",vertices.size());
+	//	printf("Triangles: %d\n",triangles.size());
+	//}
+	//else
+	//{
+	//	PlyWritePolygons(Out.value,vertices,polygons,ft);
+	//	printf("Vertices: %d\n",vertices.size());
+	//	printf("Polygons: %d\n",polygons.size());
+	//}
 
 	printf("Extracting iso-surface ...\n");
 	t=Time();
-	PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.02f,1.0f/200,0.5f,0.5f,0.5f);
+	PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/100,0.5f,0.5f,0.5f);
 	printf("Got iso-surface in: %f\n", Time()-t);
 	PolygonizerHelper::save("mesh2.ply",scale,translate);
 

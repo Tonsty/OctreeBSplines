@@ -26,7 +26,13 @@ class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 		const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,
 		stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL);
 
-	MeshInfo<double> mInfoGlobal;
+	void setDistanceAndNormal3(const Point3D<Real>& p,const Point3D<Real>& p2,const Point3D<Real>& n2,Real& dist,Point3D<Real>& n);
+	template<class MeshReal>
+	int setChildren3(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
+		const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,
+		stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL);
+
+	MeshInfo<float> mInfoGlobal;
 
 	void setCoeffValuesFromCompressedKeys(const int bsplineDepth,const std::vector<std::vector<long long> >& compressedKeys,
 		std::vector<stdext::hash_map<long long,std::pair<int,Real> > >& coeffValues);
@@ -42,7 +48,7 @@ class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 		const int minBsplineDepth,const int maxBsplineDepth, Eigen::SparseMatrix<float> &smoothMatrix);
 	
 	// Set children according to isoValue until reaching maxDepth
-	void setChildren(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& useFull);
+	void setMCLeafNodeToMaxDepth(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& useFull);
 
 public:
 	// The maximum depth of the hierarchical bsplines. The value must be at least 1. (>=1.)
@@ -54,6 +60,10 @@ public:
 
 	template<class Vertex>
 	int set2(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,const int& maxDepth,const int& setCenter,const Real& flatness,
+		Point3D<Real>& translate,Real& scale,const int& noTransform);
+
+	template<class Vertex>
+	int set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,const int& maxDepth,const int& setCenter,const Real& flatness,
 		Point3D<Real>& translate,Real& scale,const int& noTransform);
 
 	void directBsplineFitting();

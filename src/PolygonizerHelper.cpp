@@ -56,6 +56,8 @@ void PolygonizerHelper::save(const char* filename,const float scale,const Point3
 		Point3D<float> normal={(float) v.normal.x,(float) v.normal.y,(float) v.normal.z};
 		fprintf(file,"%f %f %f %f %f %f\n",point[0], point[1],point[2],normal[0],normal[1],normal[2]);
 	}
+
+
 	for (int i=0;i<::gtriangles.count;i++) {
 		TRIANGLE t;
 		t=::gtriangles.ptr[i];

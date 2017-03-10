@@ -28,8 +28,6 @@ DAMAGE.
 /////////////////
 // VertexValue //
 /////////////////
-template<class Real> Function* VertexValue<Real>::f=0;
-
 template<class Real>
 VertexValue<Real>::VertexValue(void)
 {
