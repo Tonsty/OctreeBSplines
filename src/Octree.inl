@@ -883,3 +883,6 @@ long long OctNode<NodeData,Real>::FaceIndex(const NodeIndex& nIndex,const int& f
 	idx[dir]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[dir],offset);
 	return (long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
 }
+
+//template<class NodeData,class Real> 
+//typename OctNode<NodeData,Real>::FreeOctNodeList OctNode<NodeData,Real>::freeList;

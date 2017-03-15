@@ -33,6 +33,9 @@ DAMAGE.
 #include "MarchingCubes.h"
 #include "Geometry.h"
 
+//#include <assert.h>
+//#define MAX_OCTNODE_NUM 800000
+
 template<class NodeData,class Real=float>
 class OctNode
 {
@@ -135,8 +138,49 @@ public:
 		Neighbors& setNeighbors(OctNode* node);
 		Neighbors& getNeighbors(OctNode* node);
 	};
-};
 
+	//void* operator new(size_t size)
+	//{
+	//	assert(freeList.head!=0 && freeList.cnt<MAX_OCTNODE_NUM*sizeof(OctNode));
+	//	size_t temp=freeList.cnt;
+	//	freeList.cnt+=size;
+	//	return freeList.head+temp;
+	//}
+
+	//void* operator new[](size_t size)
+	//{
+	//	assert(freeList.head!=0 && freeList.cnt<MAX_OCTNODE_NUM*sizeof(OctNode));
+	//	size_t temp=freeList.cnt;
+	//	freeList.cnt+=size;
+	//	return freeList.head+temp;
+	//}
+
+	//void operator delete[](void*)
+	//{
+	//	//printf("delete eight children\n");
+	//}
+
+	//void operator delete(void*)
+	//{
+	//	//printf("delete a node\n");
+	//}
+
+	//class FreeOctNodeList
+	//{
+	//public:
+	//	FreeOctNodeList():head(0),cnt(0) 
+	//	{
+	//		head=new char[sizeof(OctNode)*MAX_OCTNODE_NUM];
+	//	}
+	//	~FreeOctNodeList()
+	//	{
+	//		delete head;
+	//	}
+	//	char* head;
+	//	size_t cnt;
+	//};
+	//static FreeOctNodeList freeList;
+};
 
 #include "Octree.inl"
 

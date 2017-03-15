@@ -90,6 +90,7 @@ protected:
 		std::vector<Point3D<MeshReal> > triangleNormals;
 		std::vector<TriangleIndex> triangles;
 		std::vector<Point3D<MeshReal> > vertices;
+		std::vector<MeshReal> vertexCurvatures;
 
 		template<class Vertex>
 		void set(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,const Real& width,

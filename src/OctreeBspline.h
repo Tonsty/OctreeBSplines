@@ -26,10 +26,10 @@ class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 		const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,
 		stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL);
 
-	void setDistanceAndNormal3(const Point3D<Real>& p,const Point3D<Real>& p2,const Point3D<Real>& n2,Real& dist,Point3D<Real>& n);
+	void setDistanceAndNormal3(const Point3D<Real>& p,const Point3D<Real>& p2,const Point3D<Real>& n2,Real& dist,Point3D<Real>& n,Real& w);
 	template<class MeshReal>
 	int setChildren3(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
-		const std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,
+		std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,
 		stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL);
 
 	MeshInfo<float> mInfoGlobal;
@@ -69,7 +69,7 @@ public:
 	void directBsplineFitting();
 	void multigridBsplineFitting();
 	
-	void exportVTKData(const float scale, const Point3D<float> translate); 
+	void exportVTKData(const float scale, const Point3D<float> translate, const int d=128); 
 	virtual float eval(const float pos[3]);
 
 	void setMCLeafNodeToMaxDepth(const Real& isoValue,const int& useFull);

@@ -36,8 +36,9 @@ class VertexValue
 {
 public:
 	Real v;
+	Real w;
 	VertexValue(void);
-	VertexValue(const Real& v,const Point3D<Real>& n);
+	VertexValue(const Real& v,const Point3D<Real>& n,const Real&w=0);
 	Real value(void) const;
 	VertexValue operator + (const VertexValue<Real>& v) const;
 	VertexValue operator - (const VertexValue<Real>& v) const;
