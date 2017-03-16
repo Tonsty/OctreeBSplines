@@ -1,12 +1,13 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <omp.h>
 #include "Kdtree.h"
 #include "vtkHelper.h"
 
 template<class NodeData,class Real,class VertexData>
 template<class Vertex>
 int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,
-	const int& maxDepth,const int& setCenter,const Real& flatness,
+	const int& maxDepth,const int& setCenter,const Real& flatness,const Real& curvature,const int& maxDepthTree,
 	Point3D<Real>& translate,Real& scale,const int& noTransform)
 {
 	this->maxDepth=maxDepth;
@@ -24,7 +25,7 @@ int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& ver
 
 	printf("Allocating cornerValues ...\n");
 	compressedKeys.resize(maxBsplineDepth+1);
-	setChildren3(&tree,nIdx,myVertices,mInfo,maxDepth,setCenter,flatness);
+	setChildren3(&tree,nIdx,myVertices,mInfo,maxDepth,setCenter,flatness,curvature,maxDepthTree,NULL,1);
 	printf("Finished allocating\n");
 
 	KDTree<float> kdtree;
@@ -116,8 +117,9 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 	const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
 	std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,
 	const int& maxDepth,const int& setCenter,
-	const Real& flatness,
-	stdext::hash_map<long long,std::vector<int>*>* triangleMap)
+	const Real& flatness,const Real&curvature,const int& maxDepthTree,
+	stdext::hash_map<long long,std::vector<int>*>* triangleMap,
+	int bFlag)
 {
 	long long key;
 	Real w;
@@ -129,25 +131,35 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 
 	if(flatness>0)
 	{
-		//MeshReal area;
-		//Point3D<MeshReal> mc;
-		//area=0;
-		//mc[0]=mc[1]=mc[2]=0;
-		//for(size_t i=0;i<vindices.size();i++)
-		//{
-		//	area+=Length(mInfo.vertexNormals[vindices[i]]);
-		//	mc+=mInfo.vertexNormals[vindices[i]];
-		//}
-		//if(Length(mc)/area>flatness) return -1;
-
-		std::vector<int> vindicesTemp;
+		MeshReal area;
+		Point3D<MeshReal> mc;
+		area=0;
+		mc[0]=mc[1]=mc[2]=0;
 		for(size_t i=0;i<vindices.size();i++)
 		{
-			if(0.5/mInfo.vertexCurvatures[vindices[i]]<w)
-				vindicesTemp.push_back(vindices[i]);
+			area+=Length(mInfo.vertexNormals[vindices[i]]);
+			mc+=mInfo.vertexNormals[vindices[i]];
 		}
-		if(!vindicesTemp.size()) return -1;
-		vindices.swap(vindicesTemp);
+		if(Length(mc)/area>flatness) return -1;
+	}
+
+	if(bFlag)
+	{
+		if(curvature>0)
+		{
+			std::vector<int> vindicesTemp;
+			for(size_t i=0;i<vindices.size();i++)
+			{
+				if(curvature/mInfo.vertexCurvatures[vindices[i]]<w)
+					vindicesTemp.push_back(vindices[i]);
+			}
+			if(!vindicesTemp.size()) 
+			{
+				if(maxDepthTree) bFlag=0;
+				else return -1;
+			}
+			//vindices.swap(vindicesTemp);
+		}
 	}
 
 	if(!node->children)	node->initChildren();
@@ -174,9 +186,8 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 	for(int i=0;i<Cube::CORNERS;i++)
 	{
 		OctNode<NodeData,Real>::CenterAndWidth(nIdx.child(i),ctr,w);
-
 		std::vector<int> myVertices;
-		for(size_t j=0;j<vindices.size();j++)
+		for(int j=0;j<vindices.size();j++)
 		{
 			Point3D<MeshReal> t=mInfo.vertices[vindices[j]];
 			Point3D<MeshReal> ctr2;
@@ -186,7 +197,7 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 			ctr2[2]=ctr[2];
 			if(PointInCube(ctr2,w2*(Real)1.0,t)) myVertices.push_back(vindices[j]);
 		}
-		if(myVertices.size() && setChildren3(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,triangleMap)>0) retCount++;
+		if(myVertices.size() && setChildren3(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,curvature,maxDepthTree,triangleMap,bFlag)>0) retCount++;
 	}
 
 	//std::vector<int> myVerticess[Cube::CORNERS];
@@ -205,7 +216,7 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 	//	if(myVerticess[i].size() && setChildren3(&node->children[i],nIdx.child(i),myVerticess[i],mInfo,maxDepth,setCenter,flatness,triangleMap)>0) retCount++;
 
 	//if(maxBsplineDepth>0 && ((nIdx.depth==maxBsplineDepth-1) || (nIdx.depth<maxBsplineDepth-1 && retCount<8)))
-	if(maxBsplineDepth>0 && (nIdx.depth<=maxBsplineDepth-1))
+	if(bFlag && maxBsplineDepth>0 && (nIdx.depth<=maxBsplineDepth-1))
 	{
 		int bsplineOffset[3];
 		int bsplineDepth=nIdx.depth+1;
@@ -558,13 +569,8 @@ void OctreeBspline<NodeData,Real,VertexData>::setCoeffValuesFromCompressedKeys(
 	}
 }
 
-typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic> Matrix;
-typedef Eigen::Matrix<float,Eigen::Dynamic,1> Vector;
-typedef Eigen::SparseMatrix<float> SparseMatrix;
-typedef Eigen::Triplet<float> Triplet;
-
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::directBsplineFitting()
+void OctreeBspline<NodeData,Real,VertexData>::directBsplineFitting(const Real &smooth,const Real &interpolate)
 {
 	int maxDepth=this->maxDepth;
 	int maxBsplineDepth=this->maxBsplineDepth;
@@ -637,8 +643,9 @@ void OctreeBspline<NodeData,Real,VertexData>::directBsplineFitting()
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::getCornerKeysFromCompressedKeys(const int maxDepth,
 	const int bsplineDepth,const std::vector<std::vector<long long> >& compressedKeys,
-	stdext::hash_set<long long>& cornerKeys)
+	std::vector<long long>& cornerKeys)
 {
+	stdext::hash_set<long long> cornerKeys_hash;
 	for(auto it=compressedKeys[bsplineDepth].begin();it!=compressedKeys[bsplineDepth].end();it++)
 	{
 		long long compressedKey=*it;
@@ -656,13 +663,14 @@ void OctreeBspline<NodeData,Real,VertexData>::getCornerKeysFromCompressedKeys(co
 					idx[1]=(bsplineOffset[1]+j)<<(maxDepth+1-bsplineDepth);
 					idx[2]=(bsplineOffset[2]+k)<<(maxDepth+1-bsplineDepth);
 					long long cornerKey=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
-					cornerKeys.insert(cornerKey);
+					cornerKeys_hash.insert(cornerKey);
 				}
 	}
+	for(auto it=cornerKeys_hash.begin();it!=cornerKeys_hash.end();it++) cornerKeys.push_back(*it);
 }
 
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
+void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting(const Real& smooth,const Real& interpolate)
 {
 	int maxDepth=this->maxDepth;
 	int maxBsplineDepth=this->maxBsplineDepth;
@@ -677,7 +685,11 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
 	ddB<<2,0,0,-4,0,0,2,0,0;
 	ddB/=2;
 
-	float unitLen=(float)1.0/(1<<(maxDepth+1));
+	int nprocs=omp_get_num_procs();
+	omp_set_num_threads(nprocs);
+	int nthreads=omp_get_num_threads();
+	printf("using %d threads\n", nprocs);
+	printf("Eigen use %d threads\n", Eigen::nbThreads( ));
 
 	coeffValues.resize(maxBsplineDepth+1);
 	int r=0,p=0;
@@ -691,135 +703,28 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
 
 		if(coeffValues[bsplineDepth].size()>0 && compressedKeys[bsplineDepth].size()>0)
 		{
-			int p2=0;
-			for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++,p2++)it->second.first=p2;
+			int pp=0;
+			for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++,pp++)it->second.first=pp;
+			int K=coeffValues[bsplineDepth].size();
 
-			stdext::hash_set<long long> cornerKeys;
-			getCornerKeysFromCompressedKeys(maxDepth,bsplineDepth,compressedKeys,cornerKeys);
+			SparseMatrix fitMatrix(K,K);
+			Vector fitVector(K);
+			int N;
+			getFitMatrixVector(B,bsplineDepth,bsplineDepth,fitMatrix,fitVector,N);
 
-			SparseMatrix smoothMatrix;
+			SparseMatrix interpolateMatrix(K,K);
+			Vector interpolateVector(K);
+			int M;
+			getInterpolateMatrixVector(B,bsplineDepth,bsplineDepth,interpolateMatrix,interpolateVector,M);
+			float w1=0;//(float)interpolate*N/M;
+
+			SparseMatrix smoothMatrix(K,K);
 			getSmoothMatrix(B,dB,ddB,bsplineDepth,bsplineDepth,smoothMatrix);
-
-			std::vector<Triplet> A_triplets;
-			Vector b=Vector::Zero(cornerKeys.size());
-			int q2=0;
-			for(auto it=cornerKeys.begin();it!=cornerKeys.end();it++,q2++)
-			{
-				long long cornerKey=*it;
-				float pos[3];
-				getPosFromCornerKey(cornerKey,unitLen,pos);
-
-				std::vector<int> coeffIndices;
-				std::vector<float> coeffWeights;
-				float value;
-				getCoeffIndicesWeightsValueFromPos(B,1,bsplineDepth-1,pos,coeffIndices,coeffWeights,value);
-				VertexData cornerValue=cornerValues[cornerKey];
-				float residual=cornerValue.v-value;
-				b(q2)=residual*cornerValue.w;
-
-				getCoeffIndicesWeightsValueFromPos(B,bsplineDepth,bsplineDepth,pos,coeffIndices,coeffWeights,value);
-				for(int i=0;i<coeffIndices.size();i++) A_triplets.push_back(Triplet(q2,coeffIndices[i],coeffWeights[i]*cornerValue.w));
-			}
-			SparseMatrix A(q2, p2);
-			A.setFromTriplets(A_triplets.begin(),A_triplets.end());
-			SparseMatrix AtA(p2,p2);
-			AtA=A.transpose()*A;
-			Vector Atb=Vector::Zero(p2);
-			Atb=A.transpose()*b;
-
-			SparseMatrix CtC(p2,p2);
-			float w1=(float)0;
-			Vector Ctd=Vector::Zero(p2);
-			//if(bsplineDepth==maxBsplineDepth)
-			//{
-			//	std::vector<Triplet> C_triplets;
-			//	Vector d(mInfoGlobal.vertices.size());
-			//	int q3=0;
-			//	for(auto it=mInfoGlobal.vertices.begin();it!=mInfoGlobal.vertices.end();it++,q3++)
-			//	{
-			//		float pos[3];
-			//		pos[0]=it->coords[0];
-			//		pos[1]=it->coords[1];
-			//		pos[2]=it->coords[2];
-
-			//		std::vector<int> coeffIndices;
-			//		std::vector<float> coeffWeights;
-			//		float value;
-			//		getCoeffIndicesWeightsValueFromPos(B,1,bsplineDepth-1,pos,coeffIndices,coeffWeights,value);
-			//		float residual=(float)0-value;
-			//		d(q3)=residual*(float)1.0;
-
-			//		getCoeffIndicesWeightsValueFromPos(B,bsplineDepth,bsplineDepth,pos,coeffIndices,coeffWeights,value);
-			//		for(int i=0;i<coeffIndices.size();i++) C_triplets.push_back(Triplet(q3,coeffIndices[i],coeffWeights[i]*(float)1.0));
-			//	}
-			//	SparseMatrix C(q3,p2);
-			//	C.setFromTriplets(C_triplets.begin(),C_triplets.end());
-			//	CtC=C.transpose()*C;
-			//	Ctd=C.transpose()*d;
-			//	w1=(float)q2/q3*100;
-			//}
+			float w2=(float)smooth*N;
 
 			Eigen::ConjugateGradient<SparseMatrix> solver;
-			float w2=(float)0.01*q2*bsplineDepth*bsplineDepth;
-			solver.compute(AtA+w1*CtC+w2*smoothMatrix);
-			Vector x=solver.solve(Atb+w1*Ctd);
-
-			//printf("Creating A_mapTriplets ...\n");
-			//stdext::hash_map<long long, float> A_mapTriplets;
-			//Vector b=Vector::Zero(coeffValues[bsplineDepth].size());
-			//for(auto it=cornerKeys.begin();it!=cornerKeys.end();it++)
-			//{
-			//	long long cornerKey=*it;
-			//	float pos[3];
-			//	getPosFromCornerKey(cornerKey,unitLen,pos);
-
-			//	std::vector<int> coeffIndices;
-			//	std::vector<float> coeffWeights;
-			//	float value;
-			//	getCoeffIndicesWeightsValueFromPos(B,1,bsplineDepth-1,pos,coeffIndices,coeffWeights,value);
-			//	VertexData cornerValue=cornerValues[cornerKey];
-			//	float residual=cornerValue.v-value;
-
-			//	getCoeffIndicesWeightsValueFromPos(B,bsplineDepth,bsplineDepth,pos,coeffIndices,coeffWeights,value);
-			//	float w2=cornerValue.w*cornerValue.w;
-			//	for(int i=0;i<coeffIndices.size();i++) 
-			//	{
-			//		for(int j=0;j<coeffIndices.size();j++)
-			//		{
-			//			float wiwj=coeffWeights[i]*coeffWeights[j]*w2;
-			//			long long key=(long long)coeffIndices[i]<<0 | (long long)coeffIndices[j]<<31;
-			//			auto it2=A_mapTriplets.find(key);
-			//			if(it2==A_mapTriplets.end())
-			//				A_mapTriplets[key]=wiwj;
-			//			else
-			//				it2->second+=wiwj;
-			//		}
-			//		b(coeffIndices[i])+=coeffWeights[i]*residual*w2;
-			//	}
-			//}
-			//printf("Finished creating A_mapTriplets\n");
-
-			//printf("Creating A_triplets ...\n");
-			//std::vector<Triplet> A_triplets;
-			//for(auto it=A_mapTriplets.begin();it!=A_mapTriplets.end();it++)
-			//{
-			//	long long key=it->first;
-			//	int i=(key>>0)&0x7fffffff;
-			//	int j=(key>>31)&0x7fffffff;
-			//	A_triplets.push_back(Triplet(i,j,it->second));
-			//}
-			//A_mapTriplets.swap(stdext::hash_map<long long, float>());
-			//printf("Finished creating A_triplets\n");
-
-			//printf("Creating A ...\n");
-			//SparseMatrix A(coeffValues[bsplineDepth].size(), coeffValues[bsplineDepth].size());
-			//A.setFromTriplets(A_triplets.begin(),A_triplets.end());
-			//A_triplets.swap(std::vector<Triplet>());
-			//printf("Finished Creating A\n");
-
-			//Eigen::ConjugateGradient<SparseMatrix> solver;
-			//solver.compute(A+0.0001*bsplineDepth*bsplineDepth*cornerKeys.size()*smoothMatrix);
-			//Vector x=solver.solve(b);
+			solver.compute(fitMatrix+w1*interpolateMatrix+w2*smoothMatrix);
+			Vector x=solver.solve(fitVector+w1*interpolateVector);
 
 			for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++)
 			{
@@ -831,13 +736,36 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting()
 	}
 	std::cout<<"Num. of compressedKeys is "<<r<<std::endl;
 	std::cout<<"Num. of coeffValues is "<<p<<std::endl;
+}
 
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::updateCornerValues()
+{
+	float unitLen=(float)1.0/(1<<(maxDepth+1));
+	
+	std::vector<long long> cornerKeys;
 	for(auto it=cornerValues.begin();it!=cornerValues.end();it++)
 	{
 		long long cornerKey=it->first;
+		cornerKeys.push_back(cornerKey);
+	}
+	int nprocs=omp_get_num_procs();
+	omp_set_num_threads(nprocs);
+	int nthreads=omp_get_num_threads();
+	printf("using %d threads\n", nprocs);
+	std::vector<float> cornerVs(cornerKeys.size());
+#pragma omp parallel for
+	for(int i=0;i<cornerKeys.size();i++)
+	{
+		long long cornerKey=cornerKeys[i];
 		float pos[3];
 		getPosFromCornerKey(cornerKey,unitLen,pos);
-		it->second.v=eval(pos);
+		cornerVs[i]=eval(pos);
+	}
+	int i=0;
+	for(auto it=cornerValues.begin();it!=cornerValues.end();it++,i++)
+	{
+		it->second.v=cornerVs[i];
 	}
 }
 
@@ -874,8 +802,6 @@ template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(const Real& isoValue,const int& useFull)
 {
 	OctNode<NodeData,Real>* temp;
-	Real cValues[Cube::CORNERS];
-
 	OctNode<NodeData,Real>::NodeIndex nIdx;
 	temp=tree.nextLeaf(NULL,nIdx);
 	while(temp)
@@ -971,7 +897,10 @@ void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(OctNode<No
 	}
 }
 
-Vector MULT(const Vector &U,const Vector &V) 
+typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic> Matrix;
+typedef Eigen::Matrix<float,Eigen::Dynamic,1> Vector;
+
+Vector MULT(const Vector& U,const Vector& V) 
 {
 	Vector W=Vector::Zero(U.size()+V.size()-1);
 	for(int i=0;i<U.size();i++) 
@@ -980,7 +909,7 @@ Vector MULT(const Vector &U,const Vector &V)
 	return W;
 }
 
-Matrix INTofMULT(const Matrix &A, const Matrix &B) 
+Matrix INTofMULT(const Matrix& A, const Matrix& B) 
 {
 	Matrix C=Matrix::Zero(A.rows(),B.rows());
 	for (int i=0;i<A.rows();i++) 
@@ -998,7 +927,7 @@ Matrix INTofMULT(const Matrix &A, const Matrix &B)
 
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matrix<float,3,3>& B,const Eigen::Matrix<float,3,3>& dB,const Eigen::Matrix<float,3,3>& ddB,
-	const int minBsplineDepth,const int maxBsplineDepth, Eigen::SparseMatrix<float> &smoothMatrix)
+	const int minBsplineDepth,const int maxBsplineDepth, SparseMatrix& smoothMatrix)
 {
 	assert(minBsplineDepth==maxBsplineDepth);
 
@@ -1035,9 +964,19 @@ void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matri
 
 	std::vector<Triplet> smoothMatrix_triplets;
 	int bsplineDepth=minBsplineDepth;
-	for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++)
+
+	std::vector<long long> coeffKeys;
+	std::vector<int> coeffIndices;
+	for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++) 
 	{
 		long long coeffKey=it->first;
+		coeffKeys.push_back(coeffKey);
+		coeffIndices.push_back(it->second.first);
+	}
+
+	for(int p=0;p<coeffKeys.size();p++)
+	{
+		long long coeffKey=coeffKeys[p];
 		int bsplineOffset[3];
 		bsplineOffset[0]=coeffKey&0x7fff;
 		bsplineOffset[1]=(coeffKey>>15)&0x7fff;
@@ -1057,14 +996,13 @@ void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matri
 						auto it2=coeffValues[bsplineDepth].find(coeffKey2);
 						if(it2!=coeffValues[bsplineDepth].end())
 						{
-							int row=it->second.first;
+							int row=coeffIndices[p];
 							int col=it2->second.first;
 							if(col>=row)
 							{
 								float weight=hashtableWeights[i][j][k];
 								smoothMatrix_triplets.push_back(Triplet(row,col,weight));
-								if(col>row)
-									smoothMatrix_triplets.push_back(Triplet(col,row,weight));
+								if(col>row) smoothMatrix_triplets.push_back(Triplet(col,row,weight));
 							}
 						}
 					}
@@ -1077,4 +1015,177 @@ void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matri
 	smoothMatrix*=(unitLen*unitLen*unitLen);
 
 	//std::cout<<"smoothMatrix=\n"<<smoothMatrix.toDense()<<std::endl;
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::getFitMatrixVector(
+	const Eigen::Matrix<float,3,3>& B,
+	const int minBsplineDepth,
+	const int maxBsplineDepth, 
+	SparseMatrix& fitMatrix, 
+	Vector& fitVector, 
+	int& N)
+{
+	assert(minBsplineDepth==maxBsplineDepth);
+
+	int bsplineDepth=minBsplineDepth;
+	float unitLen=(float)1.0/(1<<(maxDepth+1));
+	int K=coeffValues[bsplineDepth].size();
+
+	std::vector<long long> cornerKeys;
+	getCornerKeysFromCompressedKeys(maxDepth,bsplineDepth,compressedKeys,cornerKeys);
+	N=cornerKeys.size();
+
+	std::vector<Triplet> fitMatrix_temp_triplets;
+	Vector fitVector_temp=Vector::Zero(N);
+#pragma omp parallel for
+	for(int i=0;i<N;i++)
+	{
+		long long cornerKey=cornerKeys[i];
+		float pos[3];
+		getPosFromCornerKey(cornerKey,unitLen,pos);
+
+		std::vector<int> coeffIndices;
+		std::vector<float> coeffWeights;
+		float value;
+		getCoeffIndicesWeightsValueFromPos(B,1,bsplineDepth-1,pos,coeffIndices,coeffWeights,value);
+		VertexData cornerValue=cornerValues[cornerKey];
+		float residual=cornerValue.v-value;
+		fitVector_temp(i)=residual*cornerValue.w;
+
+		getCoeffIndicesWeightsValueFromPos(B,bsplineDepth,bsplineDepth,pos,coeffIndices,coeffWeights,value);
+#pragma omp critical
+		{
+			for(int j=0;j<coeffIndices.size();j++) 
+			{
+				fitMatrix_temp_triplets.push_back(Triplet(i,coeffIndices[j],coeffWeights[j]*cornerValue.w));
+			}
+		}
+	}
+	SparseMatrix fitMatrix_temp(N,K);
+	fitMatrix_temp.setFromTriplets(fitMatrix_temp_triplets.begin(),fitMatrix_temp_triplets.end());
+	fitMatrix=fitMatrix_temp.transpose()*fitMatrix_temp;
+	fitVector=fitMatrix_temp.transpose()*fitVector_temp;
+
+	//printf("Creating A_mapTriplets ...\n");
+	//stdext::hash_map<long long, float> A_mapTriplets;
+	//Vector b=Vector::Zero(coeffValues[bsplineDepth].size());
+	//for(auto it=cornerKeys.begin();it!=cornerKeys.end();it++)
+	//{
+	//	long long cornerKey=*it;
+	//	float pos[3];
+	//	getPosFromCornerKey(cornerKey,unitLen,pos);
+
+	//	std::vector<int> coeffIndices;
+	//	std::vector<float> coeffWeights;
+	//	float value;
+	//	getCoeffIndicesWeightsValueFromPos(B,1,bsplineDepth-1,pos,coeffIndices,coeffWeights,value);
+	//	VertexData cornerValue=cornerValues[cornerKey];
+	//	float residual=cornerValue.v-value;
+
+	//	getCoeffIndicesWeightsValueFromPos(B,bsplineDepth,bsplineDepth,pos,coeffIndices,coeffWeights,value);
+	//	float w2=cornerValue.w*cornerValue.w;
+	//	for(int i=0;i<coeffIndices.size();i++) 
+	//	{
+	//		for(int j=0;j<coeffIndices.size();j++)
+	//		{
+	//			float wiwj=coeffWeights[i]*coeffWeights[j]*w2;
+	//			long long key=(long long)coeffIndices[i]<<0 | (long long)coeffIndices[j]<<31;
+	//			auto it2=A_mapTriplets.find(key);
+	//			if(it2==A_mapTriplets.end())
+	//				A_mapTriplets[key]=wiwj;
+	//			else
+	//				it2->second+=wiwj;
+	//		}
+	//		b(coeffIndices[i])+=coeffWeights[i]*residual*w2;
+	//	}
+	//}
+	//printf("Finished creating A_mapTriplets\n");
+
+	//printf("Creating A_triplets ...\n");
+	//std::vector<Triplet> A_triplets;
+	//for(auto it=A_mapTriplets.begin();it!=A_mapTriplets.end();it++)
+	//{
+	//	long long key=it->first;
+	//	int i=(key>>0)&0x7fffffff;
+	//	int j=(key>>31)&0x7fffffff;
+	//	A_triplets.push_back(Triplet(i,j,it->second));
+	//}
+	//A_mapTriplets.swap(stdext::hash_map<long long, float>());
+	//printf("Finished creating A_triplets\n");
+
+	//printf("Creating A ...\n");
+	//SparseMatrix A(coeffValues[bsplineDepth].size(), coeffValues[bsplineDepth].size());
+	//A.setFromTriplets(A_triplets.begin(),A_triplets.end());
+	//A_triplets.swap(std::vector<Triplet>());
+	//printf("Finished Creating A\n");
+
+	//Eigen::ConjugateGradient<SparseMatrix> solver;
+	//solver.compute(A+0.0001*bsplineDepth*bsplineDepth*cornerKeys.size()*smoothMatrix);
+	//Vector x=solver.solve(b);
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::sortPointsByCurvatures(std::vector<int>& beginIndices)
+{
+	//for(int i=0;i<mInfoGlobal.vertices.size();i++)
+	//{
+	//	if(mInfoGlobal.vertexCurvatures[i]>(float)(1<<maxBsplineDepth) && mInfoGlobal.vertexCurvatures[i]<(float)(1<<(maxBsplineDepth+1)))
+	//	{
+	//	}
+	//}
+}
+
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::getInterpolateMatrixVector(
+	const Eigen::Matrix<float,3,3>& B,
+	const int minBsplineDepth,
+	const int maxBsplineDepth, 
+	SparseMatrix& interpolateMatrix, 
+	Vector& interpolateVector,
+	int& M)
+{
+	assert(minBsplineDepth==maxBsplineDepth);
+
+	int bsplineDepth=minBsplineDepth;
+	float unitLen=(float)1.0/(1<<(maxDepth+1));
+	int K=coeffValues[bsplineDepth].size();
+
+	//M=0;
+	//for(int i=0;i<mInfoGlobal.vertices.size();i++)
+	//{
+	//	if(mInfoGlobal.vertexCurvatures[i]>(float)(1<<maxBsplineDepth) && mInfoGlobal.vertexCurvatures[i]<(float)(1<<(maxBsplineDepth+1)))
+	//	{
+	//		float pos[3];
+	//		pos[0]=mInfoGlobal.vertices[i].coords[0];
+	//		pos[1]=mInfoGlobal.vertices[i].coords[1];
+	//		pos[2]=mInfoGlobal.vertices[i].coords[2];
+
+	//		std::vector<int> coeffIndices;
+	//		std::vector<float> coeffWeights;
+	//		float value;
+	//		getCoeffIndicesWeightsValueFromPos(B,1,bsplineDepth-1,pos,coeffIndices,coeffWeights,value);
+	//		float residual=(float)0-value;
+	//		d_vec.push_back(residual*(float)1.0f);
+
+	//		getCoeffIndicesWeightsValueFromPos(B,bsplineDepth,bsplineDepth,pos,coeffIndices,coeffWeights,value);
+	//		for(int i=0;i<coeffIndices.size();i++) C_triplets.push_back(Triplet(q3,coeffIndices[i],coeffWeights[i]*(float)1.0f));
+	//		q3++;
+	//	}
+	//}
+
+	//SparseMatrix CtC(p2,p2);
+	//Vector Ctd=Vector::Zero(p2);
+	//std::vector<Triplet> C_triplets;
+	//std::vector<float> d_vec;
+	//int q3=0;
+
+	//printf("q3=%d\n",q3);
+	//Vector d(q3);
+	//for(int i=0;i<q3;i++) d(i)=d_vec[i];
+	//SparseMatrix C(q3,p2);
+	//C.setFromTriplets(C_triplets.begin(),C_triplets.end());
+	//CtC=C.transpose()*C;
+	//Ctd=C.transpose()*d;
 }

@@ -154,10 +154,15 @@ void ShowUsage(char* ex)
 	printf("\t\tIf the octree is generated from a mesh, this specifies the\n");
 	printf("\t\tmaximum depth of the generated tree.\n");
 
-	printf("\t[--curvature <cut-off value>]\n");
+	printf("\t[--flatness <flatness cut-off value>]\n");
 	printf("\t\tThis flag forces the octree to be clipped so the octree\n");
-	printf("\t\tis only refined around high-curvature regions. (In pracice,\n");
+	printf("\t\tis not refined around planar regions. (In pracice,\n");
 	printf("\t\ta value of about .99 works well.)\n");
+
+	printf("\t[--curvature <curvature cut-off value>]\n");
+	printf("\t\tThis flag forces the octree to be adaptive to the local curvatures\n");
+	printf("\t\tis only refined around high-curvature regions. (In pracice,\n");
+	printf("\t\ta value of about .5 works well.)\n");
 
 	printf("\t[--conforming]\n");
 	printf("\t\tIf this flag is enabled, the octree satisfies the condition\n");
@@ -197,16 +202,16 @@ int main(int argc,char* argv[])
 	typedef OctNode<MyNodeData<VertexValue<float>,float>,float> MyOctNode;
 
 	cmdLineString In, Out;
-	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold;
-	cmdLineFloat Curvature(-1);
+	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,MaxDepthTree,MaxDepthMC;
+	cmdLineFloat Flatness(-1),Curvature(-1),Smooth(0.01),Interpolate(0.0);
 	cmdLineInt MaxDepth,Bspline(-1);
 	char* paramNames[]=
 	{
-		"in","out","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold","bspline" 
+		"in","out","flatness","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold","bspline","smooth","interpolate","maxDepthTree","maxDepthMC" 
 	};
 	cmdLineReadable* params[]= 
 	{
-		&In,&Out,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,&Bspline
+		&In,&Out,&Flatness,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MaxDepthMC
 	};
 	int paramNum=sizeof(paramNames)/sizeof(char*);
 	cmdLineParse(argc-1,&argv[1],paramNames,paramNum,params,0);
@@ -241,17 +246,18 @@ int main(int argc,char* argv[])
 	printf("maxDepth: %d\n", MaxDepth.value);
 	printf("maxBsplineDepth: %d\n", Bspline.value);
 	t=Time();
-	octreeBspline.set3(inVertices,polygons,MaxDepth.value,Dual.set,Curvature.value,translate,scale,0);
+	octreeBspline.set3(inVertices,polygons,MaxDepth.value,Dual.set,Flatness.value,Curvature.value,MaxDepthTree.set,translate,scale,0);
 	printf("Got signed distance field in: %f\n", Time()-t);
 	printf("Nodes In: %d / %d\n",octreeBspline.tree.nodes(),octreeBspline.tree.leaves());
 	printf("Values In: %d\n",octreeBspline.cornerValues.size());
-
+	printf("Scale : %f\n",scale);
+	printf("Translate : %f\n",translate[0],translate[1],translate[2]);
 	if(Bspline.set && Bspline.value>0) 
 	{
 		t=Time();
 		printf("Fitting data ...\n");
-		//octreeBspline.directBsplineFitting();
-		octreeBspline.multigridBsplineFitting();
+		//octreeBspline.directBsplineFitting(Smooth.value,Interpolate.value);
+		octreeBspline.multigridBsplineFitting(Smooth.value,Interpolate.value);
 		printf("Got fitted in: %f\n", Time()-t);
 	}
 
@@ -262,7 +268,8 @@ int main(int argc,char* argv[])
 
 	printf("Estracting iso-surface ...\n");
 	t=Time();
-	//octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
+	octreeBspline.updateCornerValues();
+	if(MaxDepthMC.set) octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
 	octreeBspline.getIsoSurface(0,outVertices,polygons,FullCaseTable.set);
 	printf("Got iso-surface in: %f\n",Time()-t);
 
@@ -296,17 +303,17 @@ int main(int argc,char* argv[])
 		printf("Polygons: %d\n",polygons.size());
 	}
 
-	if(Bspline.set && Bspline.value>0)
-	{
-		//octreeBspline.exportVTKData(scale,translate,128);
-		printf("Extracting iso-surface ...\n");
-		t=Time();
-		PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/128,0.5f,0.5f,0.5f);
-		printf("Got iso-surface in: %f\n", Time()-t);
-		PolygonizerHelper::save("mesh2.ply",scale,translate);
-	}
+	//if(Bspline.set && Bspline.value>0)
+	//{
+	//	//octreeBspline.exportVTKData(scale,translate,128);
+	//	printf("Extracting iso-surface ...\n");
+	//	t=Time();
+	//	PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/128,0.5f,0.5f,0.5f);
+	//	printf("Got iso-surface in: %f\n", Time()-t);
+	//	PolygonizerHelper::save("mesh2.ply",scale,translate);
+	//}
 
-	//return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
 /*
 
