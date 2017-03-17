@@ -197,7 +197,10 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 			ctr2[2]=ctr[2];
 			if(PointInCube(ctr2,w2*(Real)1.0,t)) myVertices.push_back(vindices[j]);
 		}
-		if(myVertices.size() && setChildren3(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,curvature,maxDepthTree,triangleMap,bFlag)>0) retCount++;
+		if(myVertices.size())
+		{
+			if(setChildren3(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,curvature,maxDepthTree,triangleMap,bFlag)>0) retCount++;
+		}
 	}
 
 	//std::vector<int> myVerticess[Cube::CORNERS];
@@ -720,7 +723,7 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting(const Real
 
 			SparseMatrix smoothMatrix(K,K);
 			getSmoothMatrix(B,dB,ddB,bsplineDepth,bsplineDepth,smoothMatrix);
-			float w2=(float)smooth*N;
+			float w2=(float)smooth*N*bsplineDepth*bsplineDepth*bsplineDepth;
 
 			Eigen::ConjugateGradient<SparseMatrix> solver;
 			solver.compute(fitMatrix+w1*interpolateMatrix+w2*smoothMatrix);

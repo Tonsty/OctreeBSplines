@@ -60,7 +60,6 @@ public:
 	OctNode* children;
 	NodeData nodeData;
 
-
 	OctNode(void);
 	~OctNode(void);
 	int initChildren(void);

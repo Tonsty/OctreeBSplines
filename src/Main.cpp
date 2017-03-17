@@ -164,16 +164,6 @@ void ShowUsage(char* ex)
 	printf("\t\tis only refined around high-curvature regions. (In pracice,\n");
 	printf("\t\ta value of about .5 works well.)\n");
 
-	printf("\t[--conforming]\n");
-	printf("\t\tIf this flag is enabled, the octree satisfies the condition\n");
-	printf("\t\tthe depth disparity between adjacent leaf nodes is never\n");
-	printf("\t\tgreater than one.\n");
-
-	printf("\t[--dual]\n");
-	printf("\t\tIf this flag is enabled, the iso-surface is extracted using\n");
-	printf("\t\tthe method of [Schaeffer et al. 04] by sampling the EDT at the\n");
-	printf("\t\tcenters of the leaf nodes.\n");
-
 	printf("\t[--fullCaseTable]\n");
 	printf("\t\tIf this flag is enabled, the full marching cubes table is\n");
 	printf("\t\tused, diambiguating based on the esimated value at the\n");
@@ -184,14 +174,18 @@ void ShowUsage(char* ex)
 	printf("\t\twill be triangulated by computing the minimal area triangulation of\n");
 	printf("\t\teach of the polygons in the mesh\n");
 
-	printf( "\t[--manifold]\n");
-	printf( "\t\tIf this flag is enabled and the output is a mesh, the mesh\n");
-	printf( "\t\twill be triangulated by adding the barycenter to each polygon\n");
-	printf( "\t\t\to each polygon with more than three vertices.\n");
+	printf("\t[--manifold]\n");
+	printf("\t\tIf this flag is enabled and the output is a mesh, the mesh\n");
+	printf("\t\twill be triangulated by adding the barycenter to each polygon\n");
+	printf("\t\t\to each polygon with more than three vertices.\n");
 
-	printf( "\t[--bspline <max depth value of the hierarchical B-Splines>]\n");
-	printf( "\t\tThis flag fits the adaptive distance field by\n");
-	printf( "\t\ta hierarchical implicit B-Splines function.\n");
+	printf("\t[--bspline <max depth value of the hierarchical B-Splines>]\n");
+	printf("\t\tThis flag fits the adaptive distance field by\n");
+	printf("\t\ta hierarchical implicit B-Splines function.\n");
+
+	printf("\t[--volume <grid resolution>]\n");
+	printf("\t\tThis flag tell the program to output signed distance volume file (volume.vti) \n");
+	printf("\t\tGenerally, we set grid resolution to 128.)\n");
 }
 
 int main(int argc,char* argv[])
@@ -204,14 +198,14 @@ int main(int argc,char* argv[])
 	cmdLineString In, Out;
 	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,MaxDepthTree,MaxDepthMC;
 	cmdLineFloat Flatness(-1),Curvature(-1),Smooth(0.01),Interpolate(0.0);
-	cmdLineInt MaxDepth,Bspline(-1);
+	cmdLineInt MaxDepth,Bspline(-1),Volume(-1);
 	char* paramNames[]=
 	{
-		"in","out","flatness","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold","bspline","smooth","interpolate","maxDepthTree","maxDepthMC" 
+		"in","out","flatness","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold","bspline","smooth","interpolate","maxDepthTree","maxDepthMC","volume" 
 	};
 	cmdLineReadable* params[]= 
 	{
-		&In,&Out,&Flatness,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MaxDepthMC
+		&In,&Out,&Flatness,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MaxDepthMC,&Volume
 	};
 	int paramNum=sizeof(paramNames)/sizeof(char*);
 	cmdLineParse(argc-1,&argv[1],paramNames,paramNum,params,0);
@@ -303,15 +297,15 @@ int main(int argc,char* argv[])
 		printf("Polygons: %d\n",polygons.size());
 	}
 
-	//if(Bspline.set && Bspline.value>0)
-	//{
-	//	//octreeBspline.exportVTKData(scale,translate,128);
-	//	printf("Extracting iso-surface ...\n");
-	//	t=Time();
-	//	PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/128,0.5f,0.5f,0.5f);
-	//	printf("Got iso-surface in: %f\n", Time()-t);
-	//	PolygonizerHelper::save("mesh2.ply",scale,translate);
-	//}
+	if(Bspline.set && Bspline.value>0)
+	{
+		if(Volume.set && Volume.value>0) octreeBspline.exportVTKData(scale,translate,Volume.value);
+		//printf("Extracting iso-surface ...\n");
+		//t=Time();
+		//PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/128,0.5f,0.5f,0.5f);
+		//printf("Got iso-surface in: %f\n", Time()-t);
+		//PolygonizerHelper::save("mesh2.ply",scale,translate);
+	}
 
 	return EXIT_SUCCESS;
 }
