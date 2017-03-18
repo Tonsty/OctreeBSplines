@@ -145,47 +145,47 @@ void ShowUsage(char* ex)
 {
 	printf("Usage: %s\n",ex);
 	printf("\t--in  <input data>\n");
-	printf("\t\tInput mesh (.ply) used to generate the EDT.\n");
+	printf("\t\tInput mesh (.ply) used to generate the EDT.\n\n");
 
 	printf("\t--out <ouput data>\n");
 	printf("\t\tOutput mesh (.ply)\n");
 
 	printf("\t--maxDepth\n");
 	printf("\t\tIf the octree is generated from a mesh, this specifies the\n");
-	printf("\t\tmaximum depth of the generated tree.\n");
+	printf("\t\tmaximum depth of the generated tree.\n\n");
 
 	printf("\t[--flatness <flatness cut-off value>]\n");
 	printf("\t\tThis flag forces the octree to be clipped so the octree\n");
 	printf("\t\tis not refined around planar regions. (In pracice,\n");
-	printf("\t\ta value of about .99 works well.)\n");
+	printf("\t\ta value of about .99 works well.)\n\n");
 
 	printf("\t[--curvature <curvature cut-off value>]\n");
-	printf("\t\tThis flag forces the octree to be adaptive to the local curvatures\n");
-	printf("\t\tis only refined around high-curvature regions. (In pracice,\n");
-	printf("\t\ta value of about .5 works well.)\n");
+	printf("\t\tThis flag forces the octree to be adaptive to \n");
+	printf("\t\tthe local curvatures. (In pracice,\n");
+	printf("\t\ta value of about .5 works well.)\n\n");
 
 	printf("\t[--fullCaseTable]\n");
 	printf("\t\tIf this flag is enabled, the full marching cubes table is\n");
 	printf("\t\tused, diambiguating based on the esimated value at the\n");
-	printf("\t\tcenter of faces.\n");
+	printf("\t\tcenter of faces.\n\n");
 
 	printf("\t[--triangleMesh]\n");
-	printf("\t\tIf this flag is enabled and the output is a mesh, the mesh\n");
-	printf("\t\twill be triangulated by computing the minimal area triangulation of\n");
-	printf("\t\teach of the polygons in the mesh\n");
+	printf("\t\tIf this flag is enabled and the output is a mesh, \n");
+	printf("\t\tthe mesh will be triangulated by computing the minimal\n");
+	printf("\t\tarea triangulation of the polygons in the mesh\n\n");
 
 	printf("\t[--manifold]\n");
 	printf("\t\tIf this flag is enabled and the output is a mesh, the mesh\n");
-	printf("\t\twill be triangulated by adding the barycenter to each polygon\n");
-	printf("\t\t\to each polygon with more than three vertices.\n");
+	printf("\t\twill be triangulated by adding the barycenter to each \n");
+	printf("\t\tpolygon with more than three vertices.\n\n");
 
 	printf("\t[--bspline <max depth value of the hierarchical B-Splines>]\n");
 	printf("\t\tThis flag fits the adaptive distance field by\n");
-	printf("\t\ta hierarchical implicit B-Splines function.\n");
+	printf("\t\ta hierarchical implicit B-Splines function.\n\n");
 
 	printf("\t[--volume <grid resolution>]\n");
-	printf("\t\tThis flag tell the program to output signed distance volume file (volume.vti) \n");
-	printf("\t\tGenerally, we set grid resolution to 128.)\n");
+	printf("\t\tThis flag tell the program to output signed distance volume\n");
+	printf("\t\t(volume.vti) Generally, we set grid resolution to 128.)\n\n");
 }
 
 int main(int argc,char* argv[])
