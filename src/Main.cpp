@@ -145,14 +145,14 @@ void ShowUsage(char* ex)
 {
 	printf("Usage: %s\n",ex);
 	printf("\t--in  <input data>\n");
-	printf("\t\tInput mesh (.ply) used to generate the EDT.\n\n");
+	printf("\t\tInput oriented points (.ply) used to generate the EDT.\n\n");
 
 	printf("\t--out <ouput data>\n");
 	printf("\t\tOutput mesh (.ply)\n");
 
-	printf("\t--maxDepth\n");
-	printf("\t\tIf the octree is generated from a mesh, this specifies the\n");
-	printf("\t\tmaximum depth of the generated tree.\n\n");
+	printf("\t--maxDepth <max depth value of distance tree>\n");
+	printf("\t\tThis specifies the maximum depth of the\n");
+	printf("\t\tgenerated distance tree.\n\n");
 
 	printf("\t[--flatness <flatness cut-off value>]\n");
 	printf("\t\tThis flag forces the octree to be clipped so the octree\n");
@@ -160,8 +160,8 @@ void ShowUsage(char* ex)
 	printf("\t\ta value of about .99 works well.)\n\n");
 
 	printf("\t[--curvature <curvature cut-off value>]\n");
-	printf("\t\tThis flag forces the octree to be adaptive to \n");
-	printf("\t\tthe local curvatures. (In pracice,\n");
+	printf("\t\tThis flag forces the generated distance/bslines octree\n");
+	printf("\t\tto be adaptive to the local point curvatures. (In pracice,\n");
 	printf("\t\ta value of about .5 works well.)\n\n");
 
 	printf("\t[--fullCaseTable]\n");
@@ -179,13 +179,34 @@ void ShowUsage(char* ex)
 	printf("\t\twill be triangulated by adding the barycenter to each \n");
 	printf("\t\tpolygon with more than three vertices.\n\n");
 
-	printf("\t[--bspline <max depth value of the hierarchical B-Splines>]\n");
-	printf("\t\tThis flag fits the adaptive distance field by\n");
-	printf("\t\ta hierarchical implicit B-Splines function.\n\n");
+	printf("\t[--bspline <max depth of b-splines tree>]\n");
+	printf("\t\tThis flag forces the distance field to be fitted by\n");
+	printf("\t\ta hierarchical b-splines. The default max depth is\n");
+	printf("\t\tequal to the max depth of distance tree\n\n");
 
 	printf("\t[--volume <grid resolution>]\n");
 	printf("\t\tThis flag tell the program to output signed distance volume\n");
 	printf("\t\t(volume.vti) Generally, we set grid resolution to 128.)\n\n");
+
+	printf("\t[--smooth <the smooth weight for fitting>]\n");
+	printf("\t\tThe default smooth weight is set to 0.001.)\n\n");
+
+	printf("\t[--interpolate <the interpolate weight for fitting>]\n");
+	printf("\t\tThe default interpolate weight is set to 0.0.)\n\n");
+
+	printf("\t[--maxDepthTree]\n");
+	printf("\t\tThis flag force the distance tree to reach maxDepth.)\n");
+	printf("\t\tNote the B-Splines tree is not forced)\n\n");
+
+	printf("\t[--maxDepthMC]\n");
+	printf("\t\tThis flag force the MC leaf node to reach maxDepth.)\n\n");
+
+	printf("\t[--splat <splat factor>]\n");
+	printf("\t\tThe default splat factor is set 1.0.)\n\n");
+
+	printf("\t[--noFit]\n");
+	printf("\t\tIf this flag is set, the isosurface is directly extracted\n");
+	printf("\t\tfrom the adaptive signed distance field without fitting\n\n");
 }
 
 int main(int argc,char* argv[])
@@ -196,16 +217,18 @@ int main(int argc,char* argv[])
 	typedef OctNode<MyNodeData<VertexValue<float>,float>,float> MyOctNode;
 
 	cmdLineString In, Out;
-	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,MaxDepthTree,MaxDepthMC;
-	cmdLineFloat Flatness(-1),Curvature(-1),Smooth(0.01),Interpolate(0.0);
-	cmdLineInt MaxDepth,Bspline(-1),Volume(-1);
+	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,MaxDepthTree,MaxDepthMC,noFit;
+	cmdLineFloat Flatness(-1),Curvature(-1),Smooth(0.001),Interpolate(0.0),Splat(1.0);
+	cmdLineInt MaxDepth,Bspline(-1),Volume(128);
 	char* paramNames[]=
 	{
-		"in","out","flatness","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold","bspline","smooth","interpolate","maxDepthTree","maxDepthMC","volume" 
+		"in","out","flatness","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold",
+		"bspline","smooth","interpolate","maxDepthTree","maxDepthMC","volume","splat","noFit" 
 	};
 	cmdLineReadable* params[]= 
 	{
-		&In,&Out,&Flatness,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MaxDepthMC,&Volume
+		&In,&Out,&Flatness,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,
+		&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MaxDepthMC,&Volume,&Splat,&noFit
 	};
 	int paramNum=sizeof(paramNames)/sizeof(char*);
 	cmdLineParse(argc-1,&argv[1],paramNames,paramNum,params,0);
@@ -240,13 +263,13 @@ int main(int argc,char* argv[])
 	printf("maxDepth: %d\n", MaxDepth.value);
 	printf("maxBsplineDepth: %d\n", Bspline.value);
 	t=Time();
-	octreeBspline.set3(inVertices,polygons,MaxDepth.value,Dual.set,Flatness.value,Curvature.value,MaxDepthTree.set,translate,scale,0);
+	octreeBspline.set3(inVertices,polygons,MaxDepth.value,Dual.set,Flatness.value,Curvature.value,Splat.value,MaxDepthTree.set,translate,scale,0,noFit.set);
 	printf("Got signed distance field in: %f\n", Time()-t);
 	printf("Nodes In: %d / %d\n",octreeBspline.tree.nodes(),octreeBspline.tree.leaves());
 	printf("Values In: %d\n",octreeBspline.cornerValues.size());
 	printf("Scale : %f\n",scale);
 	printf("Translate : %f\n",translate[0],translate[1],translate[2]);
-	if(Bspline.set && Bspline.value>0) 
+	if(!noFit.set && Bspline.set && Bspline.value>0) 
 	{
 		t=Time();
 		printf("Fitting data ...\n");
@@ -262,8 +285,8 @@ int main(int argc,char* argv[])
 
 	printf("Estracting iso-surface ...\n");
 	t=Time();
-	octreeBspline.updateCornerValues();
-	if(MaxDepthMC.set) octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
+	if(!noFit.set && Bspline.set && Bspline.value>0) octreeBspline.updateCornerValues();
+	if(!noFit.set && Bspline.set && Bspline.value>0 && MaxDepthMC.set) octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
 	octreeBspline.getIsoSurface(0,outVertices,polygons,FullCaseTable.set);
 	printf("Got iso-surface in: %f\n",Time()-t);
 

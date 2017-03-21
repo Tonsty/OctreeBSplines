@@ -34,7 +34,8 @@ class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 	void setDistanceAndNormal3(const Point3D<Real>& p,const Point3D<Real>& p2,const Point3D<Real>& n2,Real& dist,Point3D<Real>& n,Real& w);
 	template<class MeshReal>
 	int setChildren3(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
-		std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,const Real& flatness,const Real&curvature,const int& maxDepthTree,
+		std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,
+		const Real& flatness,const Real&curvature,const Real& splat,const int& maxDepthTree,
 		stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL, int bFlag=1);
 
 	void setCoeffValuesFromCompressedKeys(const int bsplineDepth,const std::vector<std::vector<long long> >& compressedKeys,
@@ -73,8 +74,9 @@ public:
 		Point3D<Real>& translate,Real& scale,const int& noTransform);
 
 	template<class Vertex>
-	int set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,const int& maxDepth,const int& setCenter,const Real& flatness,const Real& curvature,const int& maxDepthTree,
-		Point3D<Real>& translate,Real& scale,const int& noTransform);
+	int set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,const int& maxDepth,const int& setCenter,
+		const Real& flatness,const Real& curvature,const Real& splat,const int& maxDepthTree,
+		Point3D<Real>& translate,Real& scale,const int& noTransform, const int& noFit);
 
 	void directBsplineFitting(const Real& smooth,const Real& interpolate);
 	void multigridBsplineFitting(const Real& smooth,const Real& interpolate);

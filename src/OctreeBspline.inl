@@ -7,8 +7,8 @@
 template<class NodeData,class Real,class VertexData>
 template<class Vertex>
 int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,
-	const int& maxDepth,const int& setCenter,const Real& flatness,const Real& curvature,const int& maxDepthTree,
-	Point3D<Real>& translate,Real& scale,const int& noTransform)
+	const int& maxDepth,const int& setCenter,const Real& flatness,const Real& curvature,const Real& splat,const int& maxDepthTree,
+	Point3D<Real>& translate,Real& scale,const int& noTransform,const int&noFit)
 {
 	this->maxDepth=maxDepth;
 	OctNode<NodeData,Real>::NodeIndex nIdx;
@@ -25,7 +25,7 @@ int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& ver
 
 	printf("Allocating cornerValues ...\n");
 	compressedKeys.resize(maxBsplineDepth+1);
-	setChildren3(&tree,nIdx,myVertices,mInfo,maxDepth,setCenter,flatness,curvature,maxDepthTree,NULL,1);
+	setChildren3(&tree,nIdx,myVertices,mInfo,maxDepth,setCenter,flatness,curvature,splat,maxDepthTree,NULL,!noFit);
 	printf("Finished allocating\n");
 
 	KDTree<float> kdtree;
@@ -116,8 +116,8 @@ template<class MeshReal>
 int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>* node,
 	const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
 	std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,
-	const int& maxDepth,const int& setCenter,
-	const Real& flatness,const Real&curvature,const int& maxDepthTree,
+	const int& maxDepth,const int& setCenter,const Real& flatness,
+	const Real&curvature,const Real& splat,const int& maxDepthTree,
 	stdext::hash_map<long long,std::vector<int>*>* triangleMap,
 	int bFlag)
 {
@@ -195,11 +195,11 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 			ctr2[0]=ctr[0];
 			ctr2[1]=ctr[1];
 			ctr2[2]=ctr[2];
-			if(PointInCube(ctr2,w2*(Real)1.0,t)) myVertices.push_back(vindices[j]);
+			if(PointInCube(ctr2,w2*(Real)splat,t)) myVertices.push_back(vindices[j]);
 		}
 		if(myVertices.size())
 		{
-			if(setChildren3(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,curvature,maxDepthTree,triangleMap,bFlag)>0) retCount++;
+			if(setChildren3(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,curvature,splat,maxDepthTree,triangleMap,bFlag)>0) retCount++;
 		}
 	}
 
@@ -710,6 +710,7 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting(const Real
 			for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++,pp++)it->second.first=pp;
 			int K=coeffValues[bsplineDepth].size();
 
+			double t=Time();
 			SparseMatrix fitMatrix(K,K);
 			Vector fitVector(K);
 			int N;
@@ -723,11 +724,21 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting(const Real
 
 			SparseMatrix smoothMatrix(K,K);
 			getSmoothMatrix(B,dB,ddB,bsplineDepth,bsplineDepth,smoothMatrix);
-			float w2=(float)smooth*N*bsplineDepth*bsplineDepth*bsplineDepth;
+			float w2=(float)smooth*N*(1<<bsplineDepth);
 
+			SparseMatrix globalMatrix=fitMatrix+w1*interpolateMatrix+w2*smoothMatrix;
+			Vector globalVector=fitVector+w1*interpolateVector;
+			printf("Set global matrix and vector in: %f\n", Time()-t);
+			
+			t=Time();
 			Eigen::ConjugateGradient<SparseMatrix> solver;
-			solver.compute(fitMatrix+w1*interpolateMatrix+w2*smoothMatrix);
-			Vector x=solver.solve(fitVector+w1*interpolateVector);
+			solver.compute(globalMatrix);
+			Vector x=solver.solve(globalVector);
+			printf("Solved in: %f\n", Time()-t);
+
+			//Eigen::JacobiSVD<Matrix> svd(fitMatrix+w1*interpolateMatrix+w2*smoothMatrix);
+			//float cond=svd.singularValues()(0)/svd.singularValues()(svd.singularValues().size()-1);
+			//printf("condition number = %f\n",cond);
 
 			for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++)
 			{
@@ -775,10 +786,6 @@ void OctreeBspline<NodeData,Real,VertexData>::updateCornerValues()
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::exportVTKData(const float scale, const Point3D<float> translate, const int d)
 {
-	Eigen::Matrix<float,3,3> B;
-	B<<1,-2,1,1,2,-2,0,0,1;
-	B/=2;
-
 #ifndef _DEBUG
 	const int dim[3] = {d,d,d};
 #else
