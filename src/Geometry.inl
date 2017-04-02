@@ -335,6 +335,7 @@ int EdgeInCube(const Point3D<Real>& ctr,const Real& w,const Point3D<Real> e[2])
 	return 1;
 #endif
 }
+#ifdef ISO_OCTREE_INCLUDED
 template <class Real>
 int TriangleInCube(const Point3D<Real>& ctr,const Real& w,const Point3D<Real> t[3])
 {
@@ -382,5 +383,6 @@ int TriangleInCube(const Point3D<Real>& ctr,const Real& w,const Point3D<Real> t[
 	}
 	return 0;
 }
+#endif
 
 

@@ -102,7 +102,7 @@ public:
 
 class MarchingCubes
 {
-	static void GetEdgeLoops(std::vector<std::pair<int,int> >& edges,std::vector<std::vector<int>>& loops);
+	static void GetEdgeLoops(std::vector<std::pair<int,int> >& edges,std::vector<std::vector<int> >& loops);
 	static std::vector< std::vector<int> > __caseTable[1<<Cube::CORNERS];
 	static int __fullCaseMap[1<<(Cube::CORNERS+Cube::FACES)];
 	static std::vector< std::vector< std::vector<int> > > __fullCaseTable;

@@ -25,6 +25,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#include <string.h>
 ////////////
 // Square //
 ////////////
@@ -457,7 +458,7 @@ int MarchingCubes::HasEdgeRoots(const int& mcIndex,const int& edgeIndex){
 	else
 		return 0;
 }
-void MarchingCubes::GetEdgeLoops(std::vector<std::pair<int,int> >& edges,std::vector<std::vector<int>>& loops)
+void MarchingCubes::GetEdgeLoops(std::vector<std::pair<int,int> >& edges,std::vector<std::vector<int> >& loops)
 {
 	int loopSize=0;
 	int idx;
