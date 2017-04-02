@@ -397,7 +397,7 @@ void IsoOctree<NodeData,Real,VertexData>::MeshInfo<MeshReal>::set(const std::vec
 	for(size_t i=0;i<vertices.size();i++)
 		vertexNormals[i]/=Length(vertexNormals[i]);
 
-	for(stdext::hash_map<EdgeKey,Point3D<MeshReal> >::iterator iter=edgeNormals.begin();iter!=edgeNormals.end();iter++)
+	for(typename stdext::hash_map<EdgeKey,Point3D<MeshReal>,HashEdgeKey >::iterator iter=edgeNormals.begin();iter!=edgeNormals.end();iter++)
 		iter->second/=Length(iter->second);
 
 }
@@ -417,7 +417,7 @@ int IsoOctree<NodeData,Real,VertexData>::set(const std::vector<Vertex>& vertices
 											 Point3D<Real>& translate,Real& scale,const int& noTransform)
 {
 	this->maxDepth=maxDepth;
-	OctNode<NodeData,Real>::NodeIndex nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx;
 
 	MeshInfo<double> mInfo;
 	std::vector<int> myTriangles;
@@ -465,7 +465,7 @@ int IsoOctree<NodeData,Real,VertexData>::setConforming(const std::vector<Vertex>
 													   Point3D<Real>& translate,Real& scale,const int& noTransform)
 {
 	this->maxDepth=maxDepth;
-	OctNode<NodeData,Real>::NodeIndex nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx;
 	std::vector<int> myTriangles;
 	stdext::hash_map<long long,std::vector<int>*> triangleMap;
 	MeshInfo<double> mInfo;
@@ -503,7 +503,7 @@ int IsoOctree<NodeData,Real,VertexData>::setConforming(const std::vector<Vertex>
 	while(forceConforming)
 	{
 		forceConforming=0;
-		nIdx=OctNode<NodeData,Real>::NodeIndex();
+		nIdx=typename OctNode<NodeData,Real>::NodeIndex();
 		for(OctNode<NodeData,Real>* node=tree.nextLeaf(NULL,nIdx) ; node ; node=tree.nextLeaf(node,nIdx) )
 		{
 			int setChildren=0;
@@ -516,7 +516,7 @@ int IsoOctree<NodeData,Real,VertexData>::setConforming(const std::vector<Vertex>
 			if(setChildren)
 			{
 				OctNode<NodeData,Real>* temp=node;
-				OctNode<NodeData,Real>::NodeIndex pIdx=nIdx;
+				typename OctNode<NodeData,Real>::NodeIndex pIdx=nIdx;
 				long long key;
 				while(temp)
 				{
@@ -786,7 +786,7 @@ void IsoOctree<NodeData,Real,VertexData>::interpolateSharedValues(void)
 	int idx[3];
 	for(int d=0;d<maxDepth;d++)
 	{
-		OctNode<NodeData,Real>::NodeIndex nIdx;
+		typename OctNode<NodeData,Real>::NodeIndex nIdx;
 		for(OctNode<NodeData,Real>* temp=tree.nextNode(NULL,nIdx) ; temp ; temp=tree.nextNode(temp,nIdx) )
 		{
 			if(nIdx.depth==d && temp->children)
@@ -837,7 +837,7 @@ void IsoOctree<NodeData,Real,VertexData>::resetValues(void)
 	stdext::hash_map<long long,VertexData> tempValues;
 	VertexData values[Cube::CORNERS];
 	nKey.set(maxDepth);
-	OctNode<NodeData,Real>::NodeIndex nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx;
 	for(OctNode<NodeData,Real>* temp=tree.nextLeaf(NULL,nIdx) ; temp ; temp=tree.nextLeaf(temp,nIdx) )
 		for(int i=0;i<Cube::CORNERS;i++)
 		{
@@ -845,7 +845,7 @@ void IsoOctree<NodeData,Real,VertexData>::resetValues(void)
 			tempValues[key]=cornerValues[key];
 		}
 	cornerValues.clear();
-	for(stdext::hash_map<long long,VertexData>::iterator iter=tempValues.begin();iter!=tempValues.end();iter++)
+	for(typename stdext::hash_map<long long,VertexData>::iterator iter=tempValues.begin();iter!=tempValues.end();iter++)
 		cornerValues[iter->first]=iter->second;
 }
 template<class NodeData,class Real,class VertexData>
@@ -856,7 +856,7 @@ int IsoOctree<NodeData,Real,VertexData>::write(FILE* fp,int writeData) const
 	fwrite(&maxDepth,sizeof(int),1,fp);
 	int hash_size=int(cornerValues.size());
 	fwrite(&hash_size,sizeof(int),1,fp);
-	for(stdext::hash_map<long long,VertexData>::const_iterator iter=cornerValues.begin();iter!=cornerValues.end();iter++)
+	for(typename stdext::hash_map<long long,VertexData>::const_iterator iter=cornerValues.begin();iter!=cornerValues.end();iter++)
 	{
 		fwrite(&iter->first,sizeof(long long),1,fp);
 		fwrite(&iter->second,sizeof(VertexData),1,fp);
@@ -943,7 +943,7 @@ int IsoOctree<NodeData,Real,VertexData>::getRootIndex(OctNode<NodeData,Real>* no
 	int c1,c2,f1,f2;
 	const OctNode<NodeData,Real> *temp,*finest;
 	int finestIndex;
-	OctNode<NodeData,Real>::NodeIndex finestNIdx=nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex finestNIdx=nIdx;
 
 	// The assumption is that the super-edge has a root along it. 
 	if(!(MarchingCubes::HasEdgeRoots(node->nodeData.mcIndex,edgeIndex)))
@@ -1105,7 +1105,7 @@ template<class NodeData,class Real,class VertexData>
 int IsoOctree<NodeData,Real,VertexData>::getRootPair(const RootInfo& ri,const int& maxDepth,RootInfo& pair)
 {
 	const OctNode<NodeData,Real>* node=ri.node;
-	OctNode<NodeData,Real>::NodeIndex nIdx=ri.nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx=ri.nIdx;
 	int c1,c2,c;
 	Cube::EdgeCorners(ri.edgeIndex,c1,c2);
 	while(node->parent)
@@ -1128,7 +1128,7 @@ int IsoOctree<NodeData,Real,VertexData>::getRootPair(const RootInfo& ri,const in
 template<class NodeData,class Real,class VertexData>
 void IsoOctree<NodeData,Real,VertexData>::getIsoFaceEdges(OctNode<NodeData,Real>* node,
 														  const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
-														  const int& faceIndex,std::vector<std::pair<RootInfo,RootInfo>>& edges,const int& flip,const int& useFull)
+														  const int& faceIndex,std::vector<std::pair<RootInfo,RootInfo> >& edges,const int& flip,const int& useFull)
 {
 	int c1,c2,c3,c4;
 	if(node->children)
@@ -1166,13 +1166,13 @@ template<class NodeData,class Real,class VertexData>
 void IsoOctree<NodeData,Real,VertexData>::getIsoPolygons(OctNode<NodeData,Real>* node,
 														 const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
 														 stdext::hash_map<long long,int>& roots,
-														 std::vector<std::vector<int>>& polygons,
+														 std::vector<std::vector<int> >& polygons,
 														 const int& useFull)
 {
 	std::vector<std::pair<long long,long long> > edges;
-	stdext::hash_map<long long,std::pair<RootInfo,int>>::iterator iter;
-	stdext::hash_map<long long,std::pair<RootInfo,int>> vertexCount;
-	std::vector<std::pair<RootInfo,RootInfo>> riEdges;
+	typename stdext::hash_map<long long,std::pair<RootInfo,int> >::iterator iter;
+	stdext::hash_map<long long,std::pair<RootInfo,int> > vertexCount;
+	std::vector<std::pair<RootInfo,RootInfo> > riEdges;
 
 #if USE_MAX_DEPTH_SPEED_UP
 	if(nIdx.depth==maxDepth) // Just run the standard marching cubes...
@@ -1208,7 +1208,7 @@ void IsoOctree<NodeData,Real,VertexData>::getIsoPolygons(OctNode<NodeData,Real>*
 					getIsoFaceEdges(node,nIdx,Cube::FaceIndex(i,j),riEdges,0,useFull);
 				else
 				{
-					OctNode<NodeData,Real>::NodeIndex idx=nIdx;
+					typename OctNode<NodeData,Real>::NodeIndex idx=nIdx;
 					if(j)	idx.offset[i]++;
 					else	idx.offset[i]--;
 					getIsoFaceEdges(nKey.neighbors[idx.depth].neighbors[x[0]][x[1]][x[2]],idx,Cube::FaceIndex(i,j^1),riEdges,1,useFull);
@@ -1309,9 +1309,9 @@ void IsoOctree<NodeData,Real,VertexData>::getIsoPolygons(OctNode<NodeData,Real>*
 }
 template<class NodeData,class Real,class VertexData>
 template<class C>
-void IsoOctree<NodeData,Real,VertexData>::getEdgeLoops(std::vector<std::pair<C,C>>& edges,
+void IsoOctree<NodeData,Real,VertexData>::getEdgeLoops(std::vector<std::pair<C,C> >& edges,
 													   stdext::hash_map<C,int>& roots,
-													   std::vector<std::vector<int>>& polygons)
+													   std::vector<std::vector<int> >& polygons)
 {
 	size_t polygonSize=polygons.size();
 	C frontIdx,backIdx;
@@ -1356,8 +1356,8 @@ void IsoOctree<NodeData,Real,VertexData>::getEdgeLoops(std::vector<std::pair<C,C
 }
 template<class NodeData,class Real,class VertexData>
 template<class C>
-void IsoOctree<NodeData,Real,VertexData>::getEdgeLoops(std::vector<std::pair<C,C>>& edges,
-													   std::vector<std::vector<C>>& polygons)
+void IsoOctree<NodeData,Real,VertexData>::getEdgeLoops(std::vector<std::pair<C,C> >& edges,
+													   std::vector<std::vector<C> >& polygons)
 {
 	int polygonSize=polygons.size();
 	C frontIdx,backIdx;
@@ -1413,7 +1413,7 @@ void IsoOctree<NodeData,Real,VertexData>::setMCIndex(const Real& isoValue,const 
 		temp->nodeData.mcIndex=0;
 
 	// Get the values at the leaf nodes and propogate up to the parents
-	OctNode<NodeData,Real>::NodeIndex nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx;
 	for(temp=tree.nextLeaf(NULL,nIdx) ; temp ; temp=tree.nextLeaf(temp,nIdx) )
 	{
 		for(int i=0;i<Cube::CORNERS;i++)
@@ -1449,7 +1449,7 @@ template<class NodeData,class Real,class VertexData>
 template<class Vertex>
 void IsoOctree<NodeData,Real,VertexData>::getDualIsoSurface(const Real& isoValue,
 															std::vector<Vertex>& vertices,
-															std::vector<std::vector<int>>& polygons,
+															std::vector<std::vector<int> >& polygons,
 															const int& useFull)
 {
 	OctNode<NodeData,Real>* temp;
@@ -1461,14 +1461,14 @@ void IsoOctree<NodeData,Real,VertexData>::getDualIsoSurface(const Real& isoValue
 	int c1,c2;
 	EdgeKey eKey;
 	std::vector<std::vector<int> > polys;
-	std::vector<std::pair<int,int>> eList;
-	stdext::hash_map<EdgeKey,int> vTable;
+	std::vector<std::pair<int,int> > eList;
+	stdext::hash_map<EdgeKey,int,HashEdgeKey> vTable;
 
 	nKey.set(maxDepth);
 
 	for(int d=maxDepth;d>=0;d--)
 	{
-		OctNode<NodeData,Real>::NodeIndex nIdx;
+		typename OctNode<NodeData,Real>::NodeIndex nIdx;
 		for(temp=tree.nextNode(NULL,nIdx) ; temp ; temp=tree.nextNode(temp,nIdx) )
 		{
 			if(nIdx.depth==d && !temp->children)
@@ -1534,7 +1534,7 @@ template<class NodeData,class Real,class VertexData>
 template<class Vertex>
 void IsoOctree<NodeData,Real,VertexData>::getIsoSurface(const Real& isoValue,
 														std::vector<Vertex>& vertices,
-														std::vector<std::vector<int>>& polygons,
+														std::vector<std::vector<int> >& polygons,
 														const int& useFull)
 {
 	OctNode<NodeData,Real>* temp;
@@ -1545,11 +1545,11 @@ void IsoOctree<NodeData,Real,VertexData>::getIsoSurface(const Real& isoValue,
 	setMCIndex(isoValue,useFull);
 
 	// Set the iso-vertex positions
-	OctNode<NodeData,Real>::NodeIndex nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx;
 	for(temp=tree.nextLeaf(NULL,nIdx) ; temp ; temp=tree.nextLeaf(temp,nIdx) )
 		getRoots(temp,nIdx,isoValue,roots,vertices);
 
-	nIdx=OctNode<NodeData,Real>::NodeIndex();
+	nIdx=typename OctNode<NodeData,Real>::NodeIndex();
 	for(temp=tree.nextLeaf(NULL,nIdx) ; temp ; temp=tree.nextLeaf(temp,nIdx) )
 		getIsoPolygons(temp,nIdx,roots,polygons,useFull);
 }
@@ -1557,7 +1557,7 @@ template<class NodeData,class Real,class VertexData>
 template<class Vertex>
 void IsoOctree<NodeData,Real,VertexData>::getIsoSoup(const Real& isoValue,
 													 std::vector<Vertex>& vertices,
-													 std::vector<std::vector<int>>& polygons,
+													 std::vector<std::vector<int> >& polygons,
 													 const int& useFull)
 {
 	OctNode<NodeData,Real>* temp;
@@ -1567,7 +1567,7 @@ void IsoOctree<NodeData,Real,VertexData>::getIsoSoup(const Real& isoValue,
 	// Set the marching cubes values
 	setMCIndex(isoValue,useFull);
 
-	OctNode<NodeData,Real>::NodeIndex nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx;
 	for(temp=tree.nextLeaf(NULL,nIdx) ; temp ; temp=tree.nextLeaf(temp,nIdx) )
 	{
 		int pIndex=int(polygons.size());
@@ -1589,11 +1589,11 @@ void IsoOctree<NodeData,Real,VertexData>::getIsoSoup(const Real& isoValue,
 }
 
 template<class NodeData,class Real,class VertexData>
-void IsoOctree<NodeData,Real,VertexData>::setNormalFlatness(const Real& isoValue,stdext::hash_map<long long,std::pair<Point3D<Real>,Real>>& flatness)
+void IsoOctree<NodeData,Real,VertexData>::setNormalFlatness(const Real& isoValue,stdext::hash_map<long long,std::pair<Point3D<Real>,Real> >& flatness)
 {
 	OctNode<NodeData,Real>* temp;
 	stdext::hash_map<long long,int> roots;
-	std::vector<Point3D<Real>> vertices;
+	std::vector<Point3D<Real> > vertices;
 
 	nKey.set(maxDepth);
 
@@ -1601,12 +1601,12 @@ void IsoOctree<NodeData,Real,VertexData>::setNormalFlatness(const Real& isoValue
 	setMCIndex(isoValue,0);
 
 	// Set the iso-vertex positions
-	OctNode<NodeData,Real>::NodeIndex nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx;
 	for(temp=tree.nextLeaf(NULL,nIdx) ; temp ; temp=tree.nextLeaf(temp,nIdx) )
 		getRoots(temp,nIdx,isoValue,roots,vertices);
 
 	// Get the polygon normals
-	nIdx=OctNode<NodeData,Real>::NodeIndex();
+	nIdx=typename OctNode<NodeData,Real>::NodeIndex();
 	for(temp=tree.nextLeaf(NULL,nIdx) ; temp ; temp=tree.nextLeaf(temp,nIdx) )
 	{
 		Point3D<Real> normal;
@@ -1614,7 +1614,7 @@ void IsoOctree<NodeData,Real,VertexData>::setNormalFlatness(const Real& isoValue
 
 		normal[0]=normal[1]=normal[2]=0;
 
-		std::vector<std::vector<int>> polygons;
+		std::vector<std::vector<int> > polygons;
 		getIsoPolygons(temp,nIdx,roots,polygons,0);
 		if(!polygons.size())
 			continue;
@@ -1638,7 +1638,7 @@ void IsoOctree<NodeData,Real,VertexData>::setNormalFlatness(const Real& isoValue
 		flatness[key].second=area;
 
 		OctNode<NodeData,Real>* parent=temp->parent;
-		OctNode<NodeData,Real>::NodeIndex pIdx=nIdx.parent();
+		typename OctNode<NodeData,Real>::NodeIndex pIdx=nIdx.parent();
 		while(parent)
 		{
 			key=OctNode<NodeData,Real>::CenterIndex(pIdx,maxDepth);

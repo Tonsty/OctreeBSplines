@@ -41,7 +41,7 @@ static PlyProperty face_props[] =
 };
 
 template<class Vertex>
-int PlyWritePolygons(char* fileName,const std::vector<Vertex>& vertices,const std::vector<std::vector<int>>& polygons,int file_type)
+int PlyWritePolygons(char* fileName,const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,int file_type)
 {
 	int nr_vertices=int(vertices.size());
 	int nr_faces=int(polygons.size());
@@ -92,7 +92,7 @@ int PlyWritePolygons(char* fileName,const std::vector<Vertex>& vertices,const st
 	return 1;
 }
 template<class Vertex>
-int PlyReadPolygons(char* fileName,std::vector<Vertex>& vertices,std::vector<std::vector<int>>& polygons,int& file_type)
+int PlyReadPolygons(char* fileName,std::vector<Vertex>& vertices,std::vector<std::vector<int> >& polygons,int& file_type)
 {
 	int nr_elems;
 	char **elist;

@@ -25,6 +25,11 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#ifndef _WIN32
+#ifndef stdext
+#define stdext __gnu_cxx
+#endif	
+#endif	
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -50,7 +55,7 @@ public:
 template<class NodeData,class VertexData,class Real>
 int IsClippable(const IsoOctree<NodeData,Real,VertexData>& isoTree,
 				OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIndex,
-				stdext::hash_map<long long,std::pair<Point3D<Real>,Real>>& flatness,
+				stdext::hash_map<long long,std::pair<Point3D<Real>,Real> >& flatness,
 				const Real& clipValue,const int& forceConforming)
 {
 	if(forceConforming)
@@ -213,7 +218,7 @@ int main(int argc,char* argv[])
 	float scale=1.f;
 	translate[0]=translate[1]=translate[2]=0;
 
-	IsoOctree<MyNodeData<VertexValue<float>,float>,float,VertexValue<float>> isoTree;
+	IsoOctree<MyNodeData<VertexValue<float>,float>,float,VertexValue<float> > isoTree;
 
 	int ft;
 	std::vector<PlyVertex> vertices;
@@ -230,7 +235,7 @@ int main(int argc,char* argv[])
 
 	if(Curvature.value>0)
 	{
-		stdext::hash_map<long long,std::pair<Point3D<float>,float>> flatness;
+		stdext::hash_map<long long,std::pair<Point3D<float>,float> > flatness;
 		isoTree.setNormalFlatness(0,flatness);
 		if(Conforming.set)
 		{
