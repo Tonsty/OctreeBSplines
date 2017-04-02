@@ -36,7 +36,6 @@
 #include "PlyFile.h"
 #include <vector>
 
-
 class PlyVertex
 {
 public:
@@ -56,6 +55,33 @@ PlyProperty PlyVertex::Properties[]=
 	{"y", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertex,point.coords[1])), 0, 0, 0, 0},
 	{"z", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertex,point.coords[2])), 0, 0, 0, 0}
 };
+
+class PlyVertexWithNormal
+{
+public:
+	const static int Components=7;
+	static PlyProperty Properties[];
+
+	Point3D<float> point;
+	Point3D<float> normal;
+	float curvature;
+
+	operator Point3D<float>& ()					{return point;}
+	operator const Point3D<float>& () const		{return point;}
+	PlyVertexWithNormal(void)					{point[0]=point[1]=point[2]=0; normal[0]=normal[1]=normal[2]=0; curvature=0;}
+	PlyVertexWithNormal(const Point3D<float>& p)	{point=p; normal[0]=normal[1]=normal[2]=0; curvature=0;}
+};
+PlyProperty PlyVertexWithNormal::Properties[]=
+{
+	{"x", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertexWithNormal,point.coords[0])), 0, 0, 0, 0},
+	{"y", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertexWithNormal,point.coords[1])), 0, 0, 0, 0},
+	{"z", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertexWithNormal,point.coords[2])), 0, 0, 0, 0},
+	{"nx", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertexWithNormal,normal.coords[0])), 0, 0, 0, 0},
+	{"ny", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertexWithNormal,normal.coords[1])), 0, 0, 0, 0},
+	{"nz", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertexWithNormal,normal.coords[2])), 0, 0, 0, 0},
+	{"curvature", PLY_FLOAT, PLY_FLOAT, int(offsetof(PlyVertexWithNormal,curvature)), 0, 0, 0, 0}
+};
+
 int PlyDefaultFileType(void){return PLY_ASCII;}
 template<class Vertex>
 int PlyReadPolygons(char* fileName,std::vector<Vertex>& vertices,std::vector<std::vector<int> >& polygons,int& file_type);

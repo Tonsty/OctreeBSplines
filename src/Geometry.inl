@@ -25,6 +25,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#include<cstdlib>
 /////////////
 // Point3D //
 /////////////
@@ -268,6 +269,16 @@ Point3D<Real> NearestPointOnTriangle(const Point3D<Real>& p,const Point3D<Real> 
 	vFlag=7;
 	return v;
 }
+template <class Real>
+Point3D<Real> NearestPointOnPlane(const Point3D<Real>& p,const Point3D<Real> t,const Point3D<Real> n,int& vFlag)
+{
+	Point3D<Real> q,nearest;
+	vFlag=0;
+
+	q=p-t;
+	nearest=p-n*DotProduct(q,n);
+	return nearest;
+}
 
 template <class Real>
 int OutCode(const Point3D<Real>& ctr,const Real& w,const Point3D<Real>& p)
@@ -335,7 +346,7 @@ int EdgeInCube(const Point3D<Real>& ctr,const Real& w,const Point3D<Real> e[2])
 	return 1;
 #endif
 }
-#ifndef CMD_LINE_PARSER_SRC
+#ifdef ISO_OCTREE_INCLUDED
 template <class Real>
 int TriangleInCube(const Point3D<Real>& ctr,const Real& w,const Point3D<Real> t[3])
 {
