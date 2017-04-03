@@ -1,6 +1,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <omp.h>
+#include "Time.h"
 #include "Kdtree.h"
 #include "vtkHelper.h"
 
@@ -815,12 +816,12 @@ template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale, const Point3D<float> translate)
 {
 	OctNode<NodeData,Real>* temp;
-	OctNode<NodeData,Real>::NodeIndex nIdx;
+	typename OctNode<NodeData,Real>::NodeIndex nIdx;
 	temp=tree.nextLeaf(NULL,nIdx);
 	while(temp)
 	{
 		OctNode<NodeData,Real>* temp2=temp;
-		OctNode<NodeData,Real>::NodeIndex nIdx2=nIdx;
+		typename OctNode<NodeData,Real>::NodeIndex nIdx2=nIdx;
 		temp=tree.nextLeaf(temp,nIdx);
 	}
 }
@@ -1044,12 +1045,15 @@ void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matri
 					}
 				}
 	}
-	coeffKeys.swap(std::vector<long long>());
-	coeffIndices.swap(std::vector<int>());
+	std::vector<long long> temp_long_long;
+	coeffKeys.swap(temp_long_long);
+	std::vector<int> temp_int;
+	coeffIndices.swap(temp_int);
 	for(int i=0;i<nprocs;i++) 
 	{
 		smoothMatrix_triplets.insert(smoothMatrix_triplets.end(), smoothMatrix_triplets_buffers[i].begin(), smoothMatrix_triplets_buffers[i].end());
-		smoothMatrix_triplets_buffers[i].swap(std::vector<Triplet>());
+		std::vector<Triplet> temp_Triplet;
+		smoothMatrix_triplets_buffers[i].swap(temp_Triplet);
 	}
 
 	smoothMatrix.resize(coeffValues[bsplineDepth].size(),coeffValues[bsplineDepth].size());
@@ -1114,7 +1118,8 @@ void OctreeBspline<NodeData,Real,VertexData>::getFitMatrixVector(
 	for(int i=0;i<nprocs;i++) 
 	{
 		fitMatrix_temp_triplets.insert(fitMatrix_temp_triplets.end(), fitMatrix_temp_triplets_buffers[i].begin(), fitMatrix_temp_triplets_buffers[i].end());
-		fitMatrix_temp_triplets_buffers[i].swap(std::vector<Triplet>());
+		std::vector<Triplet> temp_Triplet;
+		fitMatrix_temp_triplets_buffers[i].swap(temp_Triplet);
 	}
 	fitMatrix_temp.setFromTriplets(fitMatrix_temp_triplets.begin(),fitMatrix_temp_triplets.end());
 	fitMatrix=fitMatrix_temp.transpose()*fitMatrix_temp;
