@@ -124,7 +124,7 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 	long long key;
 	Real w;
 	Point3D<Real> ctr;
-	if(!vindices.size())		return -1;
+	if(vindices.size()<=1)		return -1;
 	if(nIdx.depth==maxDepth)	return -1;
 
 	OctNode<NodeData,Real>::CenterAndWidth(nIdx,ctr,w);
@@ -688,21 +688,17 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting(const Real
 	ddB<<2,0,0,-4,0,0,2,0,0;
 	ddB/=2;
 
-	int nprocs=omp_get_num_procs();
-	omp_set_num_threads(nprocs);
-	int nthreads=omp_get_num_threads();
-	printf("using %d threads\n", nprocs);
-	printf("Eigen use %d threads\n", Eigen::nbThreads( ));
-
 	coeffValues.resize(maxBsplineDepth+1);
 	int r=0,p=0;
 	for(int bsplineDepth=1;bsplineDepth<=maxBsplineDepth;bsplineDepth++)
 	{
+		double t=Time();
 		setCoeffValuesFromCompressedKeys(bsplineDepth,compressedKeys,coeffValues);
 		r+=(int)compressedKeys[bsplineDepth].size();
 		p+=(int)coeffValues[bsplineDepth].size();
 		std::cout<<"Num. of compressedKeys at bsplineDepth "<<bsplineDepth<<" is "<<compressedKeys[bsplineDepth].size()<<std::endl;
 		std::cout<<"Num. of coeffValues at bsplineDepth "<<bsplineDepth<<" is "<<coeffValues[bsplineDepth].size()<<std::endl;
+		printf("Set coeffValues in: %f\n", Time()-t);
 
 		if(coeffValues[bsplineDepth].size()>0 && compressedKeys[bsplineDepth].size()>0)
 		{
@@ -710,26 +706,33 @@ void OctreeBspline<NodeData,Real,VertexData>::multigridBsplineFitting(const Real
 			for(auto it=coeffValues[bsplineDepth].begin();it!=coeffValues[bsplineDepth].end();it++,pp++)it->second.first=pp;
 			int K=coeffValues[bsplineDepth].size();
 
-			double t=Time();
+			t=Time();
 			SparseMatrix fitMatrix(K,K);
 			Vector fitVector(K);
 			int N;
 			getFitMatrixVector(B,bsplineDepth,bsplineDepth,fitMatrix,fitVector,N);
-
+			printf("Set fit matrix and vector in: %f\n", Time()-t);
+			
+			t=Time();
 			SparseMatrix interpolateMatrix(K,K);
 			Vector interpolateVector(K);
 			int M;
 			getInterpolateMatrixVector(B,bsplineDepth,bsplineDepth,interpolateMatrix,interpolateVector,M);
 			float w1=0;//(float)interpolate*N/M;
+			printf("Set interpolate matrix and vector in: %f\n", Time()-t);
 
+			t=Time();
 			SparseMatrix smoothMatrix(K,K);
 			getSmoothMatrix(B,dB,ddB,bsplineDepth,bsplineDepth,smoothMatrix);
 			float w2=(float)smooth*N*(1<<bsplineDepth);
-
+			printf("Set smooth matrix and vector in: %f\n", Time()-t);
+			
+			t=Time();
 			SparseMatrix globalMatrix=fitMatrix+w1*interpolateMatrix+w2*smoothMatrix;
 			Vector globalVector=fitVector+w1*interpolateVector;
 			printf("Set global matrix and vector in: %f\n", Time()-t);
 			
+			//printf("Eigen use %d threads\n", Eigen::nbThreads( ));
 			t=Time();
 			Eigen::ConjugateGradient<SparseMatrix> solver;
 			solver.compute(globalMatrix);
@@ -765,10 +768,10 @@ void OctreeBspline<NodeData,Real,VertexData>::updateCornerValues()
 	}
 	int nprocs=omp_get_num_procs();
 	omp_set_num_threads(nprocs);
-	int nthreads=omp_get_num_threads();
-	printf("using %d threads\n", nprocs);
+	//printf("using %d threads\n", nprocs);
+
 	std::vector<float> cornerVs(cornerKeys.size());
-#pragma omp parallel for
+#pragma omp parallel for schedule (dynamic,1000)
 	for(int i=0;i<cornerKeys.size();i++)
 	{
 		long long cornerKey=cornerKeys[i];
@@ -784,7 +787,7 @@ void OctreeBspline<NodeData,Real,VertexData>::updateCornerValues()
 }
 
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::exportVTKData(const float scale, const Point3D<float> translate, const int d)
+void OctreeBspline<NodeData,Real,VertexData>::exportVolumeData(const float scale, const Point3D<float> translate, const int d)
 {
 #ifndef _DEBUG
 	const int dim[3] = {d,d,d};
@@ -806,6 +809,20 @@ void OctreeBspline<NodeData,Real,VertexData>::exportVTKData(const float scale, c
 	transform(1,3)=-translate[1];
 	transform(2,3)=-translate[2];
 	sameVTKVolumeAndMesh(volume,dim,"volume.vti",transform,"mesh.ply");
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale, const Point3D<float> translate)
+{
+	OctNode<NodeData,Real>* temp;
+	OctNode<NodeData,Real>::NodeIndex nIdx;
+	temp=tree.nextLeaf(NULL,nIdx);
+	while(temp)
+	{
+		OctNode<NodeData,Real>* temp2=temp;
+		OctNode<NodeData,Real>::NodeIndex nIdx2=nIdx;
+		temp=tree.nextLeaf(temp,nIdx);
+	}
 }
 
 template<class NodeData,class Real,class VertexData>
@@ -984,6 +1001,12 @@ void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matri
 		coeffIndices.push_back(it->second.first);
 	}
 
+	int nprocs=omp_get_num_procs();
+	omp_set_num_threads(nprocs);
+	//printf("Get smooth matrix using %d threads\n", nprocs);
+
+	std::vector<std::vector<Triplet> > smoothMatrix_triplets_buffers(nprocs);
+#pragma omp parallel for schedule (dynamic,1000)
 	for(int p=0;p<coeffKeys.size();p++)
 	{
 		long long coeffKey=coeffKeys[p];
@@ -991,6 +1014,8 @@ void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matri
 		bsplineOffset[0]=coeffKey&0x7fff;
 		bsplineOffset[1]=(coeffKey>>15)&0x7fff;
 		bsplineOffset[2]=(coeffKey>>30)&0x7fff;
+
+		int thread_id=omp_get_thread_num();
 
 		for(int i=0;i<5;i++)
 			for(int j=0;j<5;j++)
@@ -1011,13 +1036,22 @@ void OctreeBspline<NodeData,Real,VertexData>::getSmoothMatrix(const Eigen::Matri
 							if(col>=row)
 							{
 								float weight=hashtableWeights[i][j][k];
-								smoothMatrix_triplets.push_back(Triplet(row,col,weight));
-								if(col>row) smoothMatrix_triplets.push_back(Triplet(col,row,weight));
+								smoothMatrix_triplets_buffers[thread_id].push_back(Triplet(row,col,weight));
+								if(col>row) 
+									smoothMatrix_triplets_buffers[thread_id].push_back(Triplet(col,row,weight));
 							}
 						}
 					}
 				}
 	}
+	coeffKeys.swap(std::vector<long long>());
+	coeffIndices.swap(std::vector<int>());
+	for(int i=0;i<nprocs;i++) 
+	{
+		smoothMatrix_triplets.insert(smoothMatrix_triplets.end(), smoothMatrix_triplets_buffers[i].begin(), smoothMatrix_triplets_buffers[i].end());
+		smoothMatrix_triplets_buffers[i].swap(std::vector<Triplet>());
+	}
+
 	smoothMatrix.resize(coeffValues[bsplineDepth].size(),coeffValues[bsplineDepth].size());
 	smoothMatrix.setFromTriplets(smoothMatrix_triplets.begin(),smoothMatrix_triplets.end());
 
@@ -1046,11 +1080,18 @@ void OctreeBspline<NodeData,Real,VertexData>::getFitMatrixVector(
 	getCornerKeysFromCompressedKeys(maxDepth,bsplineDepth,compressedKeys,cornerKeys);
 	N=cornerKeys.size();
 
+	int nprocs=omp_get_num_procs();
+	omp_set_num_threads(nprocs);
+	//printf("Get fit matrix using %d threads\n", nprocs);
+
 	std::vector<Triplet> fitMatrix_temp_triplets;
 	Vector fitVector_temp=Vector::Zero(N);
-#pragma omp parallel for
+	std::vector<std::vector<Triplet> > fitMatrix_temp_triplets_buffers(nprocs);
+#pragma omp parallel for schedule (dynamic,1000)
 	for(int i=0;i<N;i++)
 	{
+		int thread_id=omp_get_thread_num();
+
 		long long cornerKey=cornerKeys[i];
 		float pos[3];
 		getPosFromCornerKey(cornerKey,unitLen,pos);
@@ -1064,15 +1105,17 @@ void OctreeBspline<NodeData,Real,VertexData>::getFitMatrixVector(
 		fitVector_temp(i)=residual*cornerValue.w;
 
 		getCoeffIndicesWeightsValueFromPos(B,bsplineDepth,bsplineDepth,pos,coeffIndices,coeffWeights,value);
-#pragma omp critical
+		for(int j=0;j<coeffIndices.size();j++) 
 		{
-			for(int j=0;j<coeffIndices.size();j++) 
-			{
-				fitMatrix_temp_triplets.push_back(Triplet(i,coeffIndices[j],coeffWeights[j]*cornerValue.w));
-			}
+			fitMatrix_temp_triplets_buffers[thread_id].push_back(Triplet(i,coeffIndices[j],coeffWeights[j]*cornerValue.w));
 		}
 	}
 	SparseMatrix fitMatrix_temp(N,K);
+	for(int i=0;i<nprocs;i++) 
+	{
+		fitMatrix_temp_triplets.insert(fitMatrix_temp_triplets.end(), fitMatrix_temp_triplets_buffers[i].begin(), fitMatrix_temp_triplets_buffers[i].end());
+		fitMatrix_temp_triplets_buffers[i].swap(std::vector<Triplet>());
+	}
 	fitMatrix_temp.setFromTriplets(fitMatrix_temp_triplets.begin(),fitMatrix_temp_triplets.end());
 	fitMatrix=fitMatrix_temp.transpose()*fitMatrix_temp;
 	fitVector=fitMatrix_temp.transpose()*fitVector_temp;

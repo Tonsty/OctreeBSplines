@@ -185,28 +185,31 @@ void ShowUsage(char* ex)
 	printf("\t\tequal to the max depth of distance tree\n\n");
 
 	printf("\t[--volume <grid resolution>]\n");
-	printf("\t\tThis flag tell the program to output signed distance volume\n");
-	printf("\t\t(volume.vti) Generally, we set grid resolution to 128.)\n\n");
+	printf("\t\tThis flag tell the program to output a signed distance volume\n");
+	printf("\t\t(volume.vti). Generally, we set grid resolution to 128.\n\n");
 
 	printf("\t[--smooth <the smooth weight for fitting>]\n");
-	printf("\t\tThe default smooth weight is set to 0.001.)\n\n");
+	printf("\t\tThe default smooth weight is set to 0.001.\n\n");
 
 	printf("\t[--interpolate <the interpolate weight for fitting>]\n");
-	printf("\t\tThe default interpolate weight is set to 0.0.)\n\n");
+	printf("\t\tThe default interpolate weight is set to 0.0.\n\n");
 
 	printf("\t[--maxDepthTree]\n");
-	printf("\t\tThis flag force the distance tree to reach maxDepth.)\n");
-	printf("\t\tNote the B-Splines tree is not forced)\n\n");
+	printf("\t\tThis flag force the distance tree to reach maxDepth.\n");
+	printf("\t\tNote the B-Splines tree is not forced.\n\n");
 
 	printf("\t[--maxDepthMC]\n");
-	printf("\t\tThis flag force the MC leaf node to reach maxDepth.)\n\n");
+	printf("\t\tThis flag force the MC leaf node to reach maxDepth.\n\n");
 
 	printf("\t[--splat <splat factor>]\n");
-	printf("\t\tThe default splat factor is set 1.0.)\n\n");
+	printf("\t\tThe default splat factor is set 1.0.\n\n");
 
 	printf("\t[--noFit]\n");
 	printf("\t\tIf this flag is set, the isosurface is directly extracted\n");
-	printf("\t\tfrom the adaptive signed distance field without fitting\n\n");
+	printf("\t\tfrom the adaptive signed distance field without fitting.\n\n");
+
+	printf("\t[--octree]\n");
+	printf("\t\tThis flag tell the program to output the octree grid (octree.vtk).\n\n");
 }
 
 int main(int argc,char* argv[])
@@ -322,7 +325,7 @@ int main(int argc,char* argv[])
 
 	if(Bspline.set && Bspline.value>0)
 	{
-		if(Volume.set && Volume.value>0) octreeBspline.exportVTKData(scale,translate,Volume.value);
+		if(Volume.set && Volume.value>0) octreeBspline.exportVolumeData(scale,translate,Volume.value);
 		//printf("Extracting iso-surface ...\n");
 		//t=Time();
 		//PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/128,0.5f,0.5f,0.5f);

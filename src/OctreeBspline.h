@@ -83,10 +83,12 @@ public:
 
 	void updateCornerValues();
 	
-	void exportVTKData(const float scale, const Point3D<float> translate, const int d=128); 
+	void exportVolumeData(const float scale, const Point3D<float> translate, const int d=128); 
 	virtual float eval(const float pos[3]);
 
 	void setMCLeafNodeToMaxDepth(const Real& isoValue,const int& useFull);
+
+	void exportOctreeGrid(const float scale, const Point3D<float> translate);
 };
 
 #include "OctreeBSpline.inl"
