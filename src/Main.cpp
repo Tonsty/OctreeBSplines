@@ -209,7 +209,11 @@ void ShowUsage(char* ex)
 	printf("\t\tfrom the adaptive signed distance field without fitting.\n\n");
 
 	printf("\t[--octree]\n");
-	printf("\t\tThis flag tell the program to output the octree grid (octree.vtk).\n\n");
+	printf("\t\tThis flag tell the program to output\n");
+	printf("\t\tthe octree grid (octree.vtk).\n\n");
+
+	printf("\t[--normal]\n");
+	printf("\t\tThis flag tell the program to output mesh with normal\n\n");
 }
 
 int main(int argc,char* argv[])
@@ -220,18 +224,18 @@ int main(int argc,char* argv[])
 	typedef OctNode<MyNodeData<VertexValue<float>,float>,float> MyOctNode;
 
 	cmdLineString In, Out;
-	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,MaxDepthTree,MaxDepthMC,noFit;
+	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,MaxDepthTree,MaxDepthMC,noFit,Normal;
 	cmdLineFloat Flatness(-1),Curvature(-1),Smooth(0.001),Interpolate(0.0),Splat(1.0);
 	cmdLineInt MaxDepth,Bspline(-1),Volume(128);
 	char* paramNames[]=
 	{
 		"in","out","flatness","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold",
-		"bspline","smooth","interpolate","maxDepthTree","maxDepthMC","volume","splat","noFit" 
+		"bspline","smooth","interpolate","maxDepthTree","maxDepthMC","volume","splat","noFit","Normal" 
 	};
 	cmdLineReadable* params[]= 
 	{
 		&In,&Out,&Flatness,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,
-		&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MaxDepthMC,&Volume,&Splat,&noFit
+		&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MaxDepthMC,&Volume,&Splat,&noFit,&Normal
 	};
 	int paramNum=sizeof(paramNames)/sizeof(char*);
 	cmdLineParse(argc-1,&argv[1],paramNames,paramNum,params,0);
@@ -273,6 +277,9 @@ int main(int argc,char* argv[])
 	printf("Scale : %f\n",scale);
 	printf("Translate : %f\n",translate[0],translate[1],translate[2]);
 
+	inVertices.swap(std::vector<InPlyVertex>());
+	polygons.swap(std::vector<std::vector<int> >());
+
 	octreeBspline.exportOctreeGrid(scale, translate);
 
 	if(!noFit.set && Bspline.set && Bspline.value>0) 
@@ -284,11 +291,7 @@ int main(int argc,char* argv[])
 		printf("Got fitted in: %f\n", Time()-t);
 	}
 
-	inVertices.clear();
-	polygons.clear();
-
 	std::vector<OutPlyVertex> outVertices;
-
 	printf("Estracting iso-surface ...\n");
 	t=Time();
 	if(!noFit.set && Bspline.set && Bspline.value>0) octreeBspline.updateCornerValues();
@@ -299,9 +302,9 @@ int main(int argc,char* argv[])
 	for(size_t i=0;i<outVertices.size();i++)
 		outVertices[i].point=outVertices[i].point/scale-translate;
 
+	std::vector<std::vector<int> > triangles;
 	if(Manifold.set)
 	{
-		std::vector<std::vector<int> > triangles;
 		double t=Time();
 		PolygonToManifoldTriangleMesh<OutPlyVertex,float>(outVertices,polygons,triangles);
 		printf("Converted polygons to triangles in: %f\n",Time()-t);
@@ -311,7 +314,6 @@ int main(int argc,char* argv[])
 	}
 	else if(TriangleMesh.set)
 	{
-		std::vector<std::vector<int> > triangles;
 		double t=Time();
 		PolygonToTriangleMesh<OutPlyVertex,float>(outVertices,polygons,triangles);
 		printf("Converted polygons to triangles in: %f\n",Time()-t);
@@ -325,6 +327,8 @@ int main(int argc,char* argv[])
 		printf("Vertices: %d\n",outVertices.size());
 		printf("Polygons: %d\n",polygons.size());
 	}
+	outVertices.swap(std::vector<OutPlyVertex>());
+	std::vector<OutPlyVertex>();
 
 	if(Bspline.set && Bspline.value>0)
 	{
@@ -334,6 +338,20 @@ int main(int argc,char* argv[])
 		//PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/128,0.5f,0.5f,0.5f);
 		//printf("Got iso-surface in: %f\n", Time()-t);
 		//PolygonizerHelper::save("mesh2.ply",scale,translate);
+	}
+
+
+	if(Normal.set)
+	{
+		std::vector<PlyVertexWithNormal> outVertices;
+		if(Manifold.set || TriangleMesh.set)
+		{
+
+		}
+		else
+		{
+
+		}
 	}
 
 	return EXIT_SUCCESS;

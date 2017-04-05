@@ -12,10 +12,15 @@
 void sameVTIVolumeAndVTKMesh(const Eigen::Matrix<float,Eigen::Dynamic,1> &volume,const int dim[3],const std::string volumeFileName,
 	const Eigen::Matrix<double,4,4> &transform,const std::string meshFileName)
 {
+	Eigen::Matrix<double,3,1> translate=transform.topRightCorner(3,1);
+	double scale=transform(0,0);
+
 	vtkSmartPointer<vtkImageData> volumeVTK=vtkSmartPointer<vtkImageData>::New();
 	volumeVTK->SetDimensions(dim[0],dim[1],dim[2]);
-	volumeVTK->SetSpacing(1.0/dim[0],1.0/dim[1],1.0/dim[2]);
-	volumeVTK->SetOrigin(0,0,0);
+	//volumeVTK->SetSpacing(1.0/dim[0],1.0/dim[1],1.0/dim[2]);
+	//volumeVTK->SetOrigin(0,0,0);
+	volumeVTK->SetSpacing(1.0/dim[0]*scale,1.0/dim[1]*scale,1.0/dim[2]*scale);
+	volumeVTK->SetOrigin(translate(0),translate(1),translate(2));
 	volumeVTK->SetNumberOfScalarComponents(1);
 	volumeVTK->SetScalarTypeToFloat();
 	volumeVTK->AllocateScalars();
@@ -37,7 +42,8 @@ void sameVTIVolumeAndVTKMesh(const Eigen::Matrix<float,Eigen::Dynamic,1> &volume
 	reverse->ReverseCellsOn();
 
 	vtkSmartPointer<vtkTransform> transformVTK=vtkSmartPointer<vtkTransform>::New();
-	Eigen::Matrix<double,4,4> transform_t=transform.transpose();
+	//Eigen::Matrix<double,4,4> transform_t=transform.transpose();
+	Eigen::Matrix<double,4,4> transform_t=Eigen::Matrix<double,4,4>::Identity(); 
 	transformVTK->SetMatrix(transform_t.data());
 
 	vtkSmartPointer<vtkTransformPolyDataFilter> filter=vtkSmartPointer<vtkTransformPolyDataFilter>::New();
