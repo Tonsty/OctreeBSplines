@@ -272,6 +272,9 @@ int main(int argc,char* argv[])
 	printf("Values In: %d\n",octreeBspline.cornerValues.size());
 	printf("Scale : %f\n",scale);
 	printf("Translate : %f\n",translate[0],translate[1],translate[2]);
+
+	octreeBspline.exportOctreeGrid(scale, translate);
+
 	if(!noFit.set && Bspline.set && Bspline.value>0) 
 	{
 		t=Time();

@@ -808,21 +808,106 @@ void OctreeBspline<NodeData,Real,VertexData>::exportVolumeData(const float scale
 	transform(0,3)=-translate[0];
 	transform(1,3)=-translate[1];
 	transform(2,3)=-translate[2];
-	sameVTKVolumeAndMesh(volume,dim,"volume.vti",transform,"mesh.ply");
+	sameVTIVolumeAndVTKMesh(volume,dim,"volume.vti",transform,"mesh.ply");
 }
 
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale, const Point3D<float> translate)
 {
+	std::vector<Point3D<float> > vertices;
+	std::vector<std::pair<int,int> > edges;
+	stdext::hash_set<long long> edgesSet;
+	stdext::hash_map<long long,int> vertexIndexMap;
+
+	float unitLen=(float)1.0/(1<<(maxDepth+1));
+
 	OctNode<NodeData,Real>* temp;
-	OctNode<NodeData,Real>::NodeIndex nIdx;
-	temp=tree.nextLeaf(NULL,nIdx);
+	OctNode<NodeData,Real>::NodeIndex nIndex;
+	temp=tree.nextLeaf(NULL,nIndex);
 	while(temp)
 	{
-		OctNode<NodeData,Real>* temp2=temp;
-		OctNode<NodeData,Real>::NodeIndex nIdx2=nIdx;
-		temp=tree.nextLeaf(temp,nIdx);
+		for(int e=0;e<Cube::EDGES;e++)
+		{
+			int idx[3];
+			int o,i1,i2;
+			for(int i=0;i<3;i++){idx[i]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth+1,nIndex.offset[i]<<1,1);}
+			Cube::FactorEdgeIndex(e,o,i1,i2);
+			switch(o){
+			case 0:
+				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],i1);
+				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],i2);
+				break;
+			case 1:
+				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],i1);
+				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],i2);
+				break;
+			case 2:
+				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],i1);
+				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],i2);
+				break;
+			};
+			long long edgeKey=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+			if(edgesSet.find(edgeKey)!=edgesSet.end()) continue;
+			edgesSet.insert(edgeKey);
+
+			switch(o){
+			case 0:
+				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],0);
+				break;
+			case 1:
+				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],0);
+				break;
+			case 2:
+				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],0);
+				break;
+			};
+			long long vertexKey0=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+			auto it0=vertexIndexMap.find(vertexKey0);
+			int vertexIndex0;
+			if(it0!=vertexIndexMap.end()) vertexIndex0=it0->second;
+			else
+			{
+				Point3D<float> vertex;
+				getPosFromCornerKey(vertexKey0,unitLen,vertex.coords);
+				vertexIndex0=vertices.size();
+				vertexIndexMap[vertexKey0]=vertexIndex0;
+				vertices.push_back(vertex);
+			}
+
+			switch(o){
+			case 0:
+				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],1);
+				break;
+			case 1:
+				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],1);
+				break;
+			case 2:
+				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],1);
+				break;
+			};
+			long long vertexKey1=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+			auto it1=vertexIndexMap.find(vertexKey1);
+			int vertexIndex1;
+			if(it1!=vertexIndexMap.end()) vertexIndex1=it1->second;
+			else
+			{
+				Point3D<float> vertex;
+				getPosFromCornerKey(vertexKey1,unitLen,vertex.coords);
+				vertexIndex1=vertices.size();
+				vertexIndexMap[vertexKey1]=vertexIndex1;
+				vertices.push_back(vertex);
+			}
+
+			edges.push_back(std::make_pair(vertexIndex0,vertexIndex1));
+		}
+
+		temp=tree.nextLeaf(temp,nIndex);
 	}
+
+	for(size_t i=0;i<vertices.size();i++)
+		vertices[i]=vertices[i]/scale-translate;
+
+	sameVTKOctree(vertices,edges,"octree.vtk");
 }
 
 template<class NodeData,class Real,class VertexData>
