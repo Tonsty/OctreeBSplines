@@ -5,6 +5,66 @@
 #include "vtkHelper.h"
 
 template<class NodeData,class Real,class VertexData>
+int OctreeBspline<NodeData,Real,VertexData>::set4(const int& maxDepth,Point3D<Real>& translate,Real& scale)
+{
+	this->maxDepth=maxDepth;
+
+	OctNode<NodeData,Real>* temp;
+	OctNode<NodeData,Real>::NodeIndex nIndex;
+
+	compressedKeys.resize(maxBsplineDepth+1);
+	for(int depth=maxDepth-1;depth<=maxDepth-1;depth++)
+	{
+		tree.setFullDepth(depth);
+		temp=tree.nextLeaf(NULL,nIndex);
+		while(temp)
+		{
+			int bsplineOffset[3];
+			int bsplineDepth=nIndex.depth+1;
+			bsplineOffset[0]=nIndex.offset[0]<<1;
+			bsplineOffset[1]=nIndex.offset[1]<<1;
+			bsplineOffset[2]=nIndex.offset[2]<<1;
+			long long compressedKey=(long long)(bsplineOffset[0]) | (long long)(bsplineOffset[1])<<15 | (long long)(bsplineOffset[2])<<30;
+			compressedKeys[bsplineDepth].push_back(compressedKey);
+			temp=tree.nextLeaf(temp,nIndex);
+		}
+	}
+
+	cornerValues.clear();
+
+	tree.setFullDepth(maxDepth);
+	temp=tree.nextLeaf(NULL,nIndex);
+	while(temp)
+	{
+		for(int c=0;c<Cube::CORNERS;c++)
+			cornerValues[OctNode<NodeData,Real>::CornerIndex(nIndex,c,maxDepth)]=VertexData(); //allocate hash-table entry
+		temp=tree.nextLeaf(temp,nIndex);
+	}
+
+	translate[0]=translate[1]=translate[2]=0.5;
+	scale=1.0;
+
+	float unitLen=(float)1.0/(1<<(maxDepth+1));
+	Point3D<Real> center;
+	center[0]=(Real)0.5;
+	center[1]=(Real)0.5;
+	center[2]=(Real)0.5;
+	for(auto it=cornerValues.begin();it!=cornerValues.end();it++)
+	{
+		long long cornerKey=it->first;
+		Point3D<Real> pos;
+		getPosFromCornerKey(cornerKey,unitLen,pos.coords);
+		
+		Real dist=Distance(pos,center)-(Real)0.5;
+		Point3D<Real> n=(pos-center)/Distance(pos,center);
+		Real w=(Real)1.0;
+		it->second=VertexData(dist,n,w);
+	}
+
+	return 1;
+}
+
+template<class NodeData,class Real,class VertexData>
 template<class Vertex>
 int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,
 	const int& maxDepth,const int& setCenter,const Real& flatness,const Real& curvature,const Real& splat,const int& maxDepthTree,
@@ -57,29 +117,6 @@ int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& ver
 		setDistanceAndNormal3(point,point2,normal2,dist,n,w);
 		it->second=VertexData(dist,n,w);
 	}
-
-	//scale=1.f;
-	//translate[0]=translate[1]=translate[2]=-0.5;
-	//Point3D<Real> center;
-	//center[0]=(Real)0.5;
-	//center[1]=(Real)0.5;
-	//center[2]=(Real)0.5;
-	//for(auto it=cornerValues.begin();it!=cornerValues.end();it++)
-	//{
-	//	long long cornerKey=it->first;
-	//	int idx[3];
-	//	idx[0]=cornerKey&0x7fff;
-	//	idx[1]=(cornerKey>>15)&0x7fff;
-	//	idx[2]=(cornerKey>>30)&0x7fff;
-	//	idx[0]>>=(maxDepth+1-maxDepth);
-	//	idx[1]>>=(maxDepth+1-maxDepth);
-	//	idx[2]>>=(maxDepth+1-maxDepth);
-	//	Point3D<Real> pos;
-	//	pos[0]=(Real)idx[0]/(1<<(maxDepth));
-	//	pos[1]=(Real)idx[1]/(1<<(maxDepth));
-	//	pos[2]=(Real)idx[2]/(1<<(maxDepth));
-	//	it->second.v=Distance(pos,center)-(Real)0.5;
-	//}
 
 	return 1;
 }
@@ -911,7 +948,7 @@ void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale
 }
 
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(const Real& isoValue,const int& useFull)
+void OctreeBspline<NodeData,Real,VertexData>::setMinDepthMCLeafNode(const Real& isoValue,const int& minDepth,const int& useFull)
 {
 	OctNode<NodeData,Real>* temp;
 	OctNode<NodeData,Real>::NodeIndex nIdx;
@@ -921,14 +958,14 @@ void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(const Real
 		OctNode<NodeData,Real>* temp2=temp;
 		OctNode<NodeData,Real>::NodeIndex nIdx2=nIdx;
 		temp=tree.nextLeaf(temp,nIdx);
-		if(nIdx2.depth<maxDepth) setMCLeafNodeToMaxDepth(temp2,nIdx2,isoValue,useFull);
+		if(nIdx2.depth<minDepth) setMinDepthMCLeafNode(temp2,nIdx2,isoValue,minDepth,useFull);
 	}
 }
 
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& useFull)
+void OctreeBspline<NodeData,Real,VertexData>::setMinDepthMCLeafNode(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& minDepth,const int& useFull)
 {
-	if(nIdx.depth==maxDepth) return;
+	if(nIdx.depth==minDepth) return;
 
 	Real cValues[Cube::CORNERS];
 	for(int i=0;i<Cube::CORNERS;i++)
@@ -1005,7 +1042,7 @@ void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(OctNode<No
 		}
 
 		for(int i=0;i<Cube::CORNERS;i++)
-			setMCLeafNodeToMaxDepth(&node->children[i],nIdx.child(i),isoValue,useFull);
+			setMinDepthMCLeafNode(&node->children[i],nIdx.child(i),isoValue,minDepth,useFull);
 	}
 }
 
@@ -1326,4 +1363,89 @@ void OctreeBspline<NodeData,Real,VertexData>::getInterpolateMatrixVector(
 	//C.setFromTriplets(C_triplets.begin(),C_triplets.end());
 	//CtC=C.transpose()*C;
 	//Ctd=C.transpose()*d;
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::gradient(const float pos[3], float gradient[3])
+{
+	float delta=(float)1.0/(1<<maxDepth)/100;
+	float posX[3]={pos[0]+delta,pos[1],pos[2]};
+	float posY[3]={pos[0],pos[1]+delta,pos[2]};
+	float posZ[3]={pos[0],pos[1],pos[2]+delta};
+
+	float value=eval(pos);
+	float valueX=eval(posX);
+	float valueY=eval(posY);
+	float valueZ=eval(posZ);
+
+	gradient[0]=(valueX-value)/delta;
+	gradient[1]=(valueY-value)/delta;
+	gradient[2]=(valueZ-value)/delta;
+
+	//Eigen::Matrix<float,3,3> B;
+	//B<<1,-2,1,1,2,-2,0,0,1;
+	//B/=2;
+	//Eigen::Matrix<float,3,3> dB;
+	//dB<<-2,2,0,2,-4,0,0,2,0;
+	//dB/=2;
+	//Eigen::Matrix<float,3,3> ddB;
+	//ddB<<2,0,0,-4,0,0,2,0,0;
+	//ddB/=2;
+
+	//std::vector<int> coeffIndices;
+	//std::vector<float> coeffWeights;
+	//getCoeffIndicesWeightsValueFromPos(dB,B,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[0]);
+	//getCoeffIndicesWeightsValueFromPos(B,dB,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[1]);
+	//getCoeffIndicesWeightsValueFromPos(B,B,dB,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[2]);
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::getCoeffIndicesWeightsValueFromPos(
+	const Eigen::Matrix<float,3,3>& Bx,const Eigen::Matrix<float,3,3>& By,const Eigen::Matrix<float,3,3>& Bz, 
+	const int minBsplineDepth,const int maxBsplineDepth,const float pos[3], 
+	std::vector<int>& coeffIndices,std::vector<float>& coeffWeights,float& value)
+{
+	value=0;
+	coeffIndices.clear();
+	coeffWeights.clear();
+	if(maxBsplineDepth<minBsplineDepth || minBsplineDepth<1) return;
+	for(int bsplineDepth=minBsplineDepth;bsplineDepth<=maxBsplineDepth;bsplineDepth++)
+	{
+		if(!coeffValues[bsplineDepth].size()) continue;
+
+		int bposInt[3];
+		float u[3];
+		getBposIntU(bsplineDepth,pos,bposInt,u);
+
+		Eigen::Matrix<float,3,3> u_mat;
+		u_mat<<1,1,1,u[0],u[1],u[2],u[0]*u[0],u[1]*u[1],u[2]*u[2];
+		Eigen::Matrix<float,3,3> Bu;
+		Bu.col(0)=Bx*u_mat.col(0);
+		Bu.col(1)=By*u_mat.col(1);
+		Bu.col(2)=Bz*u_mat.col(2);
+
+		for(int i=0;i<3;i++)
+			for(int j=0;j<3;j++)
+				for(int k=0;k<3;k++)
+				{
+					int bsplineOffset[3];
+					bsplineOffset[0]=bposInt[0]-2+i;
+					bsplineOffset[1]=bposInt[1]-2+j;
+					bsplineOffset[2]=bposInt[2]-2+k;
+					if(bsplineOffset[0]>=0 && bsplineOffset[1]>=0 && bsplineOffset[2]>=0)
+					{
+						long long key=(long long)(bsplineOffset[0]) | (long long)(bsplineOffset[1])<<15 | (long long)(bsplineOffset[2])<<30;
+						auto it2=coeffValues[bsplineDepth].find(key);
+						if(it2!=coeffValues[bsplineDepth].end())
+						{
+							int coeffIndex=it2->second.first;
+							float coeffValue=it2->second.second;
+							float coeffWeight=Bu(i,0)*Bu(j,1)*Bu(k,2);
+							coeffIndices.push_back(coeffIndex);
+							coeffWeights.push_back(coeffWeight);
+							value+=coeffValue*coeffWeight;
+						}
+					}
+				}
+	}
 }

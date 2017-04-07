@@ -168,6 +168,14 @@ Point3D<Real> Normal(const Point3D<Real>& p1,const Point3D<Real>& p2,const Point
 	CrossProduct(q1,q2,n);
 	return n;
 }
+template <class Real>
+Real Area(const Point3D<Real>& p1,const Point3D<Real>& p2,const Point3D<Real>& p3)
+{
+	Point3D<Real> p12=p2-p1,p13=p3-p1;
+	Point3D<Real> tmp;
+	CrossProduct(p12,p13,tmp);
+	return Length(tmp);
+}
 
 template <class Real>
 Real DistanceToEdge(const Point3D<Real>& p,const Point3D<Real> e[2])

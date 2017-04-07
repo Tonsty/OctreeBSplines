@@ -198,8 +198,8 @@ void ShowUsage(char* ex)
 	printf("\t\tThis flag force the distance tree to reach maxDepth.\n");
 	printf("\t\tNote the B-Splines tree is not forced.\n\n");
 
-	printf("\t[--maxDepthMC]\n");
-	printf("\t\tThis flag force the MC leaf node to reach maxDepth.\n\n");
+	printf("\t[--minDepthMC <minimum depth value for MC>]\n");
+	printf("\t\tThis flag force the MC leaf node to at least minDepth.\n\n");
 
 	printf("\t[--splat <splat factor>]\n");
 	printf("\t\tThe default splat factor is set 1.0.\n\n");
@@ -214,6 +214,9 @@ void ShowUsage(char* ex)
 
 	printf("\t[--normal]\n");
 	printf("\t\tThis flag tell the program to output mesh with normal\n\n");
+
+	printf("\t[--sphereTest]\n");
+	printf("\t\tThis flag tell the program to perform sphereTest\n\n");
 }
 
 int main(int argc,char* argv[])
@@ -224,23 +227,23 @@ int main(int argc,char* argv[])
 	typedef OctNode<MyNodeData<VertexValue<float>,float>,float> MyOctNode;
 
 	cmdLineString In, Out;
-	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,MaxDepthTree,MaxDepthMC,noFit,Normal;
+	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,MaxDepthTree,NoFit,Normal,SphereTest;
 	cmdLineFloat Flatness(-1),Curvature(-1),Smooth(0.001),Interpolate(0.0),Splat(1.0);
-	cmdLineInt MaxDepth,Bspline(-1),Volume(128);
+	cmdLineInt MaxDepth,Bspline(-1),Volume(128),MinDepthMC(-1);
 	char* paramNames[]=
 	{
 		"in","out","flatness","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold",
-		"bspline","smooth","interpolate","maxDepthTree","maxDepthMC","volume","splat","noFit","Normal" 
+		"bspline","smooth","interpolate","maxDepthTree","minDepthMC","volume","splat","noFit","normal","sphereTest" 
 	};
 	cmdLineReadable* params[]= 
 	{
 		&In,&Out,&Flatness,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,
-		&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MaxDepthMC,&Volume,&Splat,&noFit,&Normal
+		&Bspline,&Smooth,&Interpolate,&MaxDepthTree,&MinDepthMC,&Volume,&Splat,&NoFit,&Normal,&SphereTest
 	};
 	int paramNum=sizeof(paramNames)/sizeof(char*);
 	cmdLineParse(argc-1,&argv[1],paramNames,paramNum,params,0);
 
-	if(!In.set || !Out.set || !MaxDepth.set)
+	if((!SphereTest.set && !In.set) || !Out.set || !MaxDepth.set)
 	{
 		ShowUsage(argv[0]);
 		return EXIT_FAILURE;
@@ -259,30 +262,38 @@ int main(int argc,char* argv[])
 	int ft;
 	std::vector<InPlyVertex> inVertices;
 	std::vector<std::vector<int> > polygons;
+	double t;
 
-	double t=Time();
+	if(SphereTest.set)
+	{
+		ft=PLY_ASCII;
+		octreeBspline.set4(MaxDepth.value,translate,scale);
+	}
+	else
+	{
+		t=Time();
+		printf("Loading data ...\n");
+		PlyReadPolygons(In.value,inVertices,polygons,ft);
+		printf("Got data in: %f\n", Time()-t);
 
-	printf("Loading data ...\n");
-	PlyReadPolygons(In.value,inVertices,polygons,ft);
-	printf("Got data in: %f\n", Time()-t);
+		printf("Establishing signed distance field ...\n");
+		printf("maxDepth: %d\n", MaxDepth.value);
+		printf("maxBsplineDepth: %d\n", Bspline.value);
+		t=Time();
+		octreeBspline.set3(inVertices,polygons,MaxDepth.value,Dual.set,Flatness.value,Curvature.value,Splat.value,MaxDepthTree.set,translate,scale,0,NoFit.set);
+		printf("Got signed distance field in: %f\n", Time()-t);
+		printf("Nodes In: %d / %d\n",octreeBspline.tree.nodes(),octreeBspline.tree.leaves());
+		printf("Values In: %d\n",octreeBspline.cornerValues.size());
+		printf("Scale : %f\n",scale);
+		printf("Translate : %f\n",translate[0],translate[1],translate[2]);
 
-	printf("Establishing signed distance field ...\n");
-	printf("maxDepth: %d\n", MaxDepth.value);
-	printf("maxBsplineDepth: %d\n", Bspline.value);
-	t=Time();
-	octreeBspline.set3(inVertices,polygons,MaxDepth.value,Dual.set,Flatness.value,Curvature.value,Splat.value,MaxDepthTree.set,translate,scale,0,noFit.set);
-	printf("Got signed distance field in: %f\n", Time()-t);
-	printf("Nodes In: %d / %d\n",octreeBspline.tree.nodes(),octreeBspline.tree.leaves());
-	printf("Values In: %d\n",octreeBspline.cornerValues.size());
-	printf("Scale : %f\n",scale);
-	printf("Translate : %f\n",translate[0],translate[1],translate[2]);
-
-	inVertices.swap(std::vector<InPlyVertex>());
-	polygons.swap(std::vector<std::vector<int> >());
+		inVertices.swap(std::vector<InPlyVertex>());
+		polygons.swap(std::vector<std::vector<int> >());
+	}
 
 	octreeBspline.exportOctreeGrid(scale, translate);
 
-	if(!noFit.set && Bspline.set && Bspline.value>0) 
+	if(!NoFit.set && Bspline.set && Bspline.value>0) 
 	{
 		t=Time();
 		printf("Fitting data ...\n");
@@ -294,8 +305,8 @@ int main(int argc,char* argv[])
 	std::vector<OutPlyVertex> outVertices;
 	printf("Estracting iso-surface ...\n");
 	t=Time();
-	if(!noFit.set && Bspline.set && Bspline.value>0) octreeBspline.updateCornerValues();
-	if(!noFit.set && Bspline.set && Bspline.value>0 && MaxDepthMC.set) octreeBspline.setMCLeafNodeToMaxDepth(0,FullCaseTable.set);
+	if(!NoFit.set && Bspline.set && Bspline.value>0) octreeBspline.updateCornerValues();
+	if(!NoFit.set && Bspline.set && Bspline.value>0 && MinDepthMC.set) octreeBspline.setMinDepthMCLeafNode(0,MinDepthMC.value,FullCaseTable.set);
 	octreeBspline.getIsoSurface(0,outVertices,polygons,FullCaseTable.set);
 	printf("Got iso-surface in: %f\n",Time()-t);
 
@@ -327,30 +338,49 @@ int main(int argc,char* argv[])
 		printf("Vertices: %d\n",outVertices.size());
 		printf("Polygons: %d\n",polygons.size());
 	}
-	outVertices.swap(std::vector<OutPlyVertex>());
-	std::vector<OutPlyVertex>();
 
 	if(Bspline.set && Bspline.value>0)
 	{
 		if(Volume.set && Volume.value>0) octreeBspline.exportVolumeData(scale,translate,Volume.value);
-		//printf("Extracting iso-surface ...\n");
-		//t=Time();
-		//PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/128,0.5f,0.5f,0.5f);
-		//printf("Got iso-surface in: %f\n", Time()-t);
-		//PolygonizerHelper::save("mesh2.ply",scale,translate);
+		if(SphereTest.set)
+		{
+			printf("Extracting SphereTest iso-surface ...\n");
+			t=Time();
+			PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/64,0.5f,0.5f,0.5f);
+			printf("Got iso-surface in: %f\n", Time()-t);
+			PolygonizerHelper::saveSphereTest("sphereTest.ply",scale,translate);
+		}
 	}
-
 
 	if(Normal.set)
 	{
-		std::vector<PlyVertexWithNormal> outVertices;
+		//printf("Extracting Bloomenthal's iso-surface ...\n");
+		//t=Time();
+		//PolygonizerHelper::polygonize((Function*)(&octreeBspline),0.0f,1.0f/128,0.5f,0.5f,0.5f);
+		//printf("Got iso-surface in: %f\n", Time()-t);
+		//PolygonizerHelper::save("result_with_normal.ply",scale,translate);
+
+		std::vector<PlyVertexWithNormal> outVertexWithNormals(outVertices.size());
+
+		for(size_t i=0;i<outVertexWithNormals.size();i++)
+			outVertexWithNormals[i].point=(outVertices[i].point+translate)*scale;
+
+		for(size_t i=0;i<outVertexWithNormals.size();i++)
+		{
+			octreeBspline.gradient(outVertexWithNormals[i].point.coords,outVertexWithNormals[i].normal.coords);
+			outVertexWithNormals[i].normal/=Length(outVertexWithNormals[i].normal);
+		}
+
+		for(size_t i=0;i<outVertexWithNormals.size();i++)
+			outVertexWithNormals[i].point=outVertices[i].point/scale-translate;
+
 		if(Manifold.set || TriangleMesh.set)
 		{
-
+			PlyWritePolygons("result_with_normal.ply",outVertexWithNormals,triangles,ft);
 		}
 		else
 		{
-
+			PlyWritePolygons("result_with_normal.ply",outVertexWithNormals,polygons,ft);
 		}
 	}
 
