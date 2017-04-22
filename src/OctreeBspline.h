@@ -42,7 +42,7 @@ class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 	template<class MeshReal>
 	int setChildren3(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
 		std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,const int& maxDepth,const int& setCenter,
-		const Real& flatness,const Real&curvature,const Real& splat,const int& maxDepthTree,
+		const Real& flatness,const Real&curvature,const Real& splat,const int& minDepthTree,
 		stdext::hash_map<long long,std::vector<int>*>* triangleMap=NULL, int bFlag=1);
 
 	void setCoeffValuesFromCompressedKeys(const int bsplineDepth,const std::vector<std::vector<long long> >& compressedKeys,
@@ -53,6 +53,10 @@ class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 	inline void getPosFromCornerKey(const long long cornerKey,const float unitLen,float pos[3]);
 	inline void getBposIntU(const int bsplineDepth,const float pos[3],int bposInt[3],float u[3]);
 	void getCoeffIndicesWeightsValueFromPos(const Eigen::Matrix<float,3,3>& B,const int minBsplineDepth,const int maxBsplineDepth,const float pos[3], 
+		std::vector<int>& coeffIndices,std::vector<float>& coeffWeights,float& value);
+
+	void getCoeffIndicesWeightsValueFromPos(const Eigen::Matrix<float,3,3>& Bx,const Eigen::Matrix<float,3,3>& By,const Eigen::Matrix<float,3,3>& Bz,
+		const int minBsplineDepth,const int maxBsplineDepth,const float pos[3], 
 		std::vector<int>& coeffIndices,std::vector<float>& coeffWeights,float& value);
 
 	void getSmoothMatrix(const Eigen::Matrix<float,3,3>& B,const Eigen::Matrix<float,3,3>& dB,const Eigen::Matrix<float,3,3>& ddB,
@@ -66,7 +70,7 @@ class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 		SparseMatrix& interpolateMatrix, Vector& interpolateVector, int& M);
 	
 	// Set children according to isoValue until reaching maxDepth
-	void setMCLeafNodeToMaxDepth(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& useFull);
+	void setMinDepthMCLeafNode(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& minDepth,const int& useFull);
 
 public:
 	// The maximum depth of the hierarchical bsplines. The value must be at least 1. (>=1.)
@@ -82,20 +86,23 @@ public:
 
 	template<class Vertex>
 	int set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,const int& maxDepth,const int& setCenter,
-		const Real& flatness,const Real& curvature,const Real& splat,const int& maxDepthTree,
-		Point3D<Real>& translate,Real& scale,const int& noTransform, const int& noFit);
+		const Real& flatness,const Real& curvature,const Real& splat,const int& minDepthTree,
+		Point3D<Real>& translate,Real& scale,const int& noTransform, const int& bFlag);
+
+	int set4(const int& maxDepth,Point3D<Real>& translate,Real& scale);
 
 	void directBsplineFitting(const Real& smooth,const Real& interpolate);
 	void multigridBsplineFitting(const Real& smooth,const Real& interpolate);
 
 	void updateCornerValues();
 	
-	void exportVolumeData(const float scale, const Point3D<float> translate, const int d=128); 
+	void exportVolumeData(const float scale,const Point3D<float> translate,const int d=128); 
 	virtual float eval(const float pos[3]);
+	virtual void gradient(const float pos[3],float gradient[3]);
 
-	void setMCLeafNodeToMaxDepth(const Real& isoValue,const int& useFull);
+	void setMinDepthMCLeafNode(const Real& isoValue,const int& minDepth,const int& useFull);
 
-	void exportOctreeGrid(const float scale, const Point3D<float> translate);
+	void exportOctreeGrid(const float scale,const Point3D<float> translate);
 };
 
 #include "OctreeBspline.inl"

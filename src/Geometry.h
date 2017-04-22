@@ -78,6 +78,9 @@ template <class Real>
 Point3D<Real> Normal(const Point3D<Real>& p1,const Point3D<Real>& p2,const Point3D<Real>& p3);
 
 template <class Real>
+Real Area(const Point3D<Real>& p1,const Point3D<Real>& p2,const Point3D<Real>& p3);
+
+template <class Real>
 Real DistanceToEdge(const Point3D<Real>& p,const Point3D<Real> e[2]);
 template <class Real>
 Real DistanceToTriangle(const Point3D<Real>& p,const Point3D<Real> t[3]);

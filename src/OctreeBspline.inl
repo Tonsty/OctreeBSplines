@@ -6,10 +6,70 @@
 #include "vtkHelper.h"
 
 template<class NodeData,class Real,class VertexData>
+int OctreeBspline<NodeData,Real,VertexData>::set4(const int& maxDepth,Point3D<Real>& translate,Real& scale)
+{
+	this->maxDepth=maxDepth;
+
+	OctNode<NodeData,Real>* temp;
+	typename OctNode<NodeData,Real>::NodeIndex nIndex;
+
+	compressedKeys.resize(maxBsplineDepth+1);
+	for(int depth=maxDepth-1;depth<=maxDepth-1;depth++)
+	{
+		tree.setFullDepth(depth);
+		temp=tree.nextLeaf(NULL,nIndex);
+		while(temp)
+		{
+			int bsplineOffset[3];
+			int bsplineDepth=nIndex.depth+1;
+			bsplineOffset[0]=nIndex.offset[0]<<1;
+			bsplineOffset[1]=nIndex.offset[1]<<1;
+			bsplineOffset[2]=nIndex.offset[2]<<1;
+			long long compressedKey=(long long)(bsplineOffset[0]) | (long long)(bsplineOffset[1])<<15 | (long long)(bsplineOffset[2])<<30;
+			compressedKeys[bsplineDepth].push_back(compressedKey);
+			temp=tree.nextLeaf(temp,nIndex);
+		}
+	}
+
+	cornerValues.clear();
+
+	tree.setFullDepth(maxDepth);
+	temp=tree.nextLeaf(NULL,nIndex);
+	while(temp)
+	{
+		for(int c=0;c<Cube::CORNERS;c++)
+			cornerValues[OctNode<NodeData,Real>::CornerIndex(nIndex,c,maxDepth)]=VertexData(); //allocate hash-table entry
+		temp=tree.nextLeaf(temp,nIndex);
+	}
+
+	translate[0]=translate[1]=translate[2]=0.5;
+	scale=1.0;
+
+	float unitLen=(float)1.0/(1<<(maxDepth+1));
+	Point3D<Real> center;
+	center[0]=(Real)0.5;
+	center[1]=(Real)0.5;
+	center[2]=(Real)0.5;
+	for(auto it=cornerValues.begin();it!=cornerValues.end();it++)
+	{
+		long long cornerKey=it->first;
+		Point3D<Real> pos;
+		getPosFromCornerKey(cornerKey,unitLen,pos.coords);
+		
+		Real dist=Distance(pos,center)-(Real)0.5;
+		Point3D<Real> n=(pos-center)/Distance(pos,center);
+		Real w=(Real)1.0;
+		it->second=VertexData(dist,n,w);
+	}
+
+	return 1;
+}
+
+template<class NodeData,class Real,class VertexData>
 template<class Vertex>
 int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& vertices,const std::vector<std::vector<int> >& polygons,
-	const int& maxDepth,const int& setCenter,const Real& flatness,const Real& curvature,const Real& splat,const int& maxDepthTree,
-	Point3D<Real>& translate,Real& scale,const int& noTransform,const int&noFit)
+	const int& maxDepth,const int& setCenter,const Real& flatness,const Real& curvature,const Real& splat,const int& minDepthTree,
+	Point3D<Real>& translate,Real& scale,const int& noTransform,const int&bFlag)
 {
 	this->maxDepth=maxDepth;
 	typename OctNode<NodeData,Real>::NodeIndex nIdx;
@@ -26,7 +86,7 @@ int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& ver
 
 	printf("Allocating cornerValues ...\n");
 	compressedKeys.resize(maxBsplineDepth+1);
-	setChildren3(&tree,nIdx,myVertices,mInfo,maxDepth,setCenter,flatness,curvature,splat,maxDepthTree,NULL,!noFit);
+	setChildren3(&tree,nIdx,myVertices,mInfo,maxDepth,setCenter,flatness,curvature,splat,minDepthTree,NULL,bFlag);
 	printf("Finished allocating\n");
 
 	KDTree<float> kdtree;
@@ -58,29 +118,6 @@ int OctreeBspline<NodeData,Real,VertexData>::set3(const std::vector<Vertex>& ver
 		setDistanceAndNormal3(point,point2,normal2,dist,n,w);
 		it->second=VertexData(dist,n,w);
 	}
-
-	//scale=1.f;
-	//translate[0]=translate[1]=translate[2]=-0.5;
-	//Point3D<Real> center;
-	//center[0]=(Real)0.5;
-	//center[1]=(Real)0.5;
-	//center[2]=(Real)0.5;
-	//for(auto it=cornerValues.begin();it!=cornerValues.end();it++)
-	//{
-	//	long long cornerKey=it->first;
-	//	int idx[3];
-	//	idx[0]=cornerKey&0x7fff;
-	//	idx[1]=(cornerKey>>15)&0x7fff;
-	//	idx[2]=(cornerKey>>30)&0x7fff;
-	//	idx[0]>>=(maxDepth+1-maxDepth);
-	//	idx[1]>>=(maxDepth+1-maxDepth);
-	//	idx[2]>>=(maxDepth+1-maxDepth);
-	//	Point3D<Real> pos;
-	//	pos[0]=(Real)idx[0]/(1<<(maxDepth));
-	//	pos[1]=(Real)idx[1]/(1<<(maxDepth));
-	//	pos[2]=(Real)idx[2]/(1<<(maxDepth));
-	//	it->second.v=Distance(pos,center)-(Real)0.5;
-	//}
 
 	return 1;
 }
@@ -118,7 +155,7 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 	const typename OctNode<NodeData,Real>::NodeIndex& nIdx,
 	std::vector<int>& vindices,MeshInfo<MeshReal>& mInfo,
 	const int& maxDepth,const int& setCenter,const Real& flatness,
-	const Real&curvature,const Real& splat,const int& maxDepthTree,
+	const Real&curvature,const Real& splat,const int& minDepthTree,
 	stdext::hash_map<long long,std::vector<int>*>* triangleMap,
 	int bFlag)
 {
@@ -144,23 +181,21 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 		if(Length(mc)/area>flatness) return -1;
 	}
 
-	if(bFlag)
+
+	if(nIdx.depth>minDepthTree && curvature>0)
 	{
-		if(curvature>0)
+		std::vector<int> vindicesTemp;
+		for(size_t i=0;i<vindices.size();i++)
 		{
-			std::vector<int> vindicesTemp;
-			for(size_t i=0;i<vindices.size();i++)
-			{
-				if(curvature/mInfo.vertexCurvatures[vindices[i]]<w)
-					vindicesTemp.push_back(vindices[i]);
-			}
-			if(!vindicesTemp.size()) 
-			{
-				if(maxDepthTree) bFlag=0;
-				else return -1;
-			}
-			//vindices.swap(vindicesTemp);
+			if(curvature/mInfo.vertexCurvatures[vindices[i]]<w)
+				vindicesTemp.push_back(vindices[i]);
 		}
+		if(!vindicesTemp.size()) 
+		{
+			if(nIdx.depth<minDepthTree) bFlag=0;
+			else return -1;
+		}
+		//vindices.swap(vindicesTemp);
 	}
 
 	if(!node->children)	node->initChildren();
@@ -200,7 +235,7 @@ int OctreeBspline<NodeData,Real,VertexData>::setChildren3(OctNode<NodeData,Real>
 		}
 		if(myVertices.size())
 		{
-			if(setChildren3(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,curvature,splat,maxDepthTree,triangleMap,bFlag)>0) retCount++;
+			if(setChildren3(&node->children[i],nIdx.child(i),myVertices,mInfo,maxDepth,setCenter,flatness,curvature,splat,minDepthTree,triangleMap,bFlag)>0) retCount++;
 		}
 	}
 
@@ -809,25 +844,110 @@ void OctreeBspline<NodeData,Real,VertexData>::exportVolumeData(const float scale
 	transform(0,3)=-translate[0];
 	transform(1,3)=-translate[1];
 	transform(2,3)=-translate[2];
-	sameVTKVolumeAndMesh(volume,dim,"volume.vti",transform,"mesh.ply");
+	sameVTIVolumeAndVTKMesh(volume,dim,"volume.vti",transform,"mesh.ply");
 }
 
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale, const Point3D<float> translate)
 {
+	std::vector<Point3D<float> > vertices;
+	std::vector<std::pair<int,int> > edges;
+	stdext::hash_set<long long> edgesSet;
+	stdext::hash_map<long long,int> vertexIndexMap;
+
+	float unitLen=(float)1.0/(1<<(maxDepth+1));
+
 	OctNode<NodeData,Real>* temp;
-	typename OctNode<NodeData,Real>::NodeIndex nIdx;
-	temp=tree.nextLeaf(NULL,nIdx);
+	typename OctNode<NodeData,Real>::NodeIndex nIndex;
+	temp=tree.nextLeaf(NULL,nIndex);
 	while(temp)
 	{
-		OctNode<NodeData,Real>* temp2=temp;
-		typename OctNode<NodeData,Real>::NodeIndex nIdx2=nIdx;
-		temp=tree.nextLeaf(temp,nIdx);
+		for(int e=0;e<Cube::EDGES;e++)
+		{
+			int idx[3];
+			int o,i1,i2;
+			for(int i=0;i<3;i++){idx[i]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth+1,nIndex.offset[i]<<1,1);}
+			Cube::FactorEdgeIndex(e,o,i1,i2);
+			switch(o){
+			case 0:
+				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],i1);
+				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],i2);
+				break;
+			case 1:
+				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],i1);
+				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],i2);
+				break;
+			case 2:
+				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],i1);
+				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],i2);
+				break;
+			};
+			long long edgeKey=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+			if(edgesSet.find(edgeKey)!=edgesSet.end()) continue;
+			edgesSet.insert(edgeKey);
+
+			switch(o){
+			case 0:
+				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],0);
+				break;
+			case 1:
+				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],0);
+				break;
+			case 2:
+				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],0);
+				break;
+			};
+			long long vertexKey0=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+			auto it0=vertexIndexMap.find(vertexKey0);
+			int vertexIndex0;
+			if(it0!=vertexIndexMap.end()) vertexIndex0=it0->second;
+			else
+			{
+				Point3D<float> vertex;
+				getPosFromCornerKey(vertexKey0,unitLen,vertex.coords);
+				vertexIndex0=vertices.size();
+				vertexIndexMap[vertexKey0]=vertexIndex0;
+				vertices.push_back(vertex);
+			}
+
+			switch(o){
+			case 0:
+				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],1);
+				break;
+			case 1:
+				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],1);
+				break;
+			case 2:
+				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],1);
+				break;
+			};
+			long long vertexKey1=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+			auto it1=vertexIndexMap.find(vertexKey1);
+			int vertexIndex1;
+			if(it1!=vertexIndexMap.end()) vertexIndex1=it1->second;
+			else
+			{
+				Point3D<float> vertex;
+				getPosFromCornerKey(vertexKey1,unitLen,vertex.coords);
+				vertexIndex1=vertices.size();
+				vertexIndexMap[vertexKey1]=vertexIndex1;
+				vertices.push_back(vertex);
+			}
+
+			edges.push_back(std::make_pair(vertexIndex0,vertexIndex1));
+		}
+
+		temp=tree.nextLeaf(temp,nIndex);
 	}
+
+	for(size_t i=0;i<vertices.size();i++)
+		vertices[i]=vertices[i]/scale-translate;
+
+	sameVTKOctree(vertices,edges,"octree.vtk");
 }
 
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(const Real& isoValue,const int& useFull)
+void OctreeBspline<NodeData,Real,VertexData>::setMinDepthMCLeafNode(const Real& isoValue,const int& minDepth,const int& useFull)
 {
 	OctNode<NodeData,Real>* temp;
 	typename OctNode<NodeData,Real>::NodeIndex nIdx;
@@ -837,14 +957,14 @@ void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(const Real
 		OctNode<NodeData,Real>* temp2=temp;
 		typename OctNode<NodeData,Real>::NodeIndex nIdx2=nIdx;
 		temp=tree.nextLeaf(temp,nIdx);
-		if(nIdx2.depth<maxDepth) setMCLeafNodeToMaxDepth(temp2,nIdx2,isoValue,useFull);
+		if(nIdx2.depth<minDepth) setMinDepthMCLeafNode(temp2,nIdx2,isoValue,minDepth,useFull);
 	}
 }
 
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& useFull)
+void OctreeBspline<NodeData,Real,VertexData>::setMinDepthMCLeafNode(OctNode<NodeData,Real>* node,const typename OctNode<NodeData,Real>::NodeIndex& nIdx,const Real& isoValue,const int& minDepth,const int& useFull)
 {
-	if(nIdx.depth==maxDepth) return;
+	if(nIdx.depth==minDepth) return;
 
 	Real cValues[Cube::CORNERS];
 	for(int i=0;i<Cube::CORNERS;i++)
@@ -921,7 +1041,7 @@ void OctreeBspline<NodeData,Real,VertexData>::setMCLeafNodeToMaxDepth(OctNode<No
 		}
 
 		for(int i=0;i<Cube::CORNERS;i++)
-			setMCLeafNodeToMaxDepth(&node->children[i],nIdx.child(i),isoValue,useFull);
+			setMinDepthMCLeafNode(&node->children[i],nIdx.child(i),isoValue,minDepth,useFull);
 	}
 }
 
@@ -1246,4 +1366,89 @@ void OctreeBspline<NodeData,Real,VertexData>::getInterpolateMatrixVector(
 	//C.setFromTriplets(C_triplets.begin(),C_triplets.end());
 	//CtC=C.transpose()*C;
 	//Ctd=C.transpose()*d;
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::gradient(const float pos[3], float gradient[3])
+{
+	float delta=(float)1.0/(1<<maxDepth)/100;
+	float posX[3]={pos[0]+delta,pos[1],pos[2]};
+	float posY[3]={pos[0],pos[1]+delta,pos[2]};
+	float posZ[3]={pos[0],pos[1],pos[2]+delta};
+
+	float value=eval(pos);
+	float valueX=eval(posX);
+	float valueY=eval(posY);
+	float valueZ=eval(posZ);
+
+	gradient[0]=(valueX-value)/delta;
+	gradient[1]=(valueY-value)/delta;
+	gradient[2]=(valueZ-value)/delta;
+
+	//Eigen::Matrix<float,3,3> B;
+	//B<<1,-2,1,1,2,-2,0,0,1;
+	//B/=2;
+	//Eigen::Matrix<float,3,3> dB;
+	//dB<<-2,2,0,2,-4,0,0,2,0;
+	//dB/=2;
+	//Eigen::Matrix<float,3,3> ddB;
+	//ddB<<2,0,0,-4,0,0,2,0,0;
+	//ddB/=2;
+
+	//std::vector<int> coeffIndices;
+	//std::vector<float> coeffWeights;
+	//getCoeffIndicesWeightsValueFromPos(dB,B,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[0]);
+	//getCoeffIndicesWeightsValueFromPos(B,dB,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[1]);
+	//getCoeffIndicesWeightsValueFromPos(B,B,dB,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[2]);
+}
+
+template<class NodeData,class Real,class VertexData>
+void OctreeBspline<NodeData,Real,VertexData>::getCoeffIndicesWeightsValueFromPos(
+	const Eigen::Matrix<float,3,3>& Bx,const Eigen::Matrix<float,3,3>& By,const Eigen::Matrix<float,3,3>& Bz, 
+	const int minBsplineDepth,const int maxBsplineDepth,const float pos[3], 
+	std::vector<int>& coeffIndices,std::vector<float>& coeffWeights,float& value)
+{
+	value=0;
+	coeffIndices.clear();
+	coeffWeights.clear();
+	if(maxBsplineDepth<minBsplineDepth || minBsplineDepth<1) return;
+	for(int bsplineDepth=minBsplineDepth;bsplineDepth<=maxBsplineDepth;bsplineDepth++)
+	{
+		if(!coeffValues[bsplineDepth].size()) continue;
+
+		int bposInt[3];
+		float u[3];
+		getBposIntU(bsplineDepth,pos,bposInt,u);
+
+		Eigen::Matrix<float,3,3> u_mat;
+		u_mat<<1,1,1,u[0],u[1],u[2],u[0]*u[0],u[1]*u[1],u[2]*u[2];
+		Eigen::Matrix<float,3,3> Bu;
+		Bu.col(0)=Bx*u_mat.col(0);
+		Bu.col(1)=By*u_mat.col(1);
+		Bu.col(2)=Bz*u_mat.col(2);
+
+		for(int i=0;i<3;i++)
+			for(int j=0;j<3;j++)
+				for(int k=0;k<3;k++)
+				{
+					int bsplineOffset[3];
+					bsplineOffset[0]=bposInt[0]-2+i;
+					bsplineOffset[1]=bposInt[1]-2+j;
+					bsplineOffset[2]=bposInt[2]-2+k;
+					if(bsplineOffset[0]>=0 && bsplineOffset[1]>=0 && bsplineOffset[2]>=0)
+					{
+						long long key=(long long)(bsplineOffset[0]) | (long long)(bsplineOffset[1])<<15 | (long long)(bsplineOffset[2])<<30;
+						auto it2=coeffValues[bsplineDepth].find(key);
+						if(it2!=coeffValues[bsplineDepth].end())
+						{
+							int coeffIndex=it2->second.first;
+							float coeffValue=it2->second.second;
+							float coeffWeight=Bu(i,0)*Bu(j,1)*Bu(k,2);
+							coeffIndices.push_back(coeffIndex);
+							coeffWeights.push_back(coeffWeight);
+							value+=coeffValue*coeffWeight;
+						}
+					}
+				}
+	}
 }
