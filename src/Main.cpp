@@ -291,7 +291,7 @@ int main(int argc,char* argv[])
 		polygons.swap(std::vector<std::vector<int> >());
 	}
 
-	octreeBspline.exportOctreeGrid(scale, translate);
+	//octreeBspline.exportOctreeGrid(scale, translate);
 
 	if(!NoFit.set && Bspline.set && Bspline.value>0) 
 	{
@@ -372,7 +372,7 @@ int main(int argc,char* argv[])
 		}
 
 		for(size_t i=0;i<outVertexWithNormals.size();i++)
-			outVertexWithNormals[i].point=outVertices[i].point/scale-translate;
+			outVertexWithNormals[i].point=outVertexWithNormals[i].point/scale-translate;
 
 		if(Manifold.set || TriangleMesh.set)
 		{
