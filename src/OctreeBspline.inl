@@ -1374,51 +1374,37 @@ void OctreeBspline<NodeData,Real,VertexData>::getInterpolateMatrixVector(
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::gradient(const float pos[3], float gradient[3])
 {
+	//float delta=(float)1.0/(1<<maxDepth)/100;
+	//float posX[3]={pos[0]+delta,pos[1],pos[2]};
+	//float posY[3]={pos[0],pos[1]+delta,pos[2]};
+	//float posZ[3]={pos[0],pos[1],pos[2]+delta};
+
+	//float value=eval(pos);
+	//float valueX=eval(posX);
+	//float valueY=eval(posY);
+	//float valueZ=eval(posZ);
+
+	//gradient[0]=(valueX-value)/delta;
+	//gradient[1]=(valueY-value)/delta;
+	//gradient[2]=(valueZ-value)/delta;
+
 	Eigen::Matrix<float,3,3> B;
 	B<<1,-2,1,
-	1,2,-2,
-	0,0,1;
+		1,2,-2,
+		0,0,1;
 	B/=2;
 	Eigen::Matrix<float,3,3> dB;
 	dB<<-2,2,0,
-	2,-4,0,
-	0,2,0;
+		2,-4,0,
+		0,2,0;
 	dB/=2;
-	Eigen::Matrix<float,3,3> ddB;
-	ddB<<2,0,0,
-	-4,0,0,
-	2,0,0;
-	ddB/=2;	
+
 	std::vector<int> coeffIndices;
-	std::vector<float> coeffWeights;	
+	std::vector<float> coeffWeights;
 
-	float delta=(float)1.0/(1<<maxDepth)/100;
-	float posX[3]={pos[0]+delta,pos[1],pos[2]};
-	float posY[3]={pos[0],pos[1]+delta,pos[2]};
-	float posZ[3]={pos[0],pos[1],pos[2]+delta};
-
-	float value=eval(pos);
-	float valueX=eval(posX);
-	float valueY=eval(posY);
-	float valueZ=eval(posZ);
-
-	gradient[0]=(valueX-value)/delta;
-	gradient[1]=(valueY-value)/delta;
-	gradient[2]=(valueZ-value)/delta;
-
-	float len = gradient[0]*gradient[0] + gradient[1]*gradient[1] + gradient[2]*gradient[2];
-	len = sqrtf(len);
-
-	// std::cout << "(" << gradient[0]/len << ", " << gradient[1]/len << ", " << gradient[2]/len << ") ";
-
-	// getCoeffIndicesWeightsValueFromPos(dB,B,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[0]);
-	// getCoeffIndicesWeightsValueFromPos(B,dB,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[1]);
-	// getCoeffIndicesWeightsValueFromPos(B,B,dB,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[2]);
-
-	// len = gradient[0]*gradient[0] + gradient[1]*gradient[1] + gradient[2]*gradient[2];
-	// len = sqrtf(len);
-
-	// std::cout << "(" << gradient[0]/len << ", " << gradient[1]/len << ", " << gradient[2]/len << ") " << std::endl;
+	getCoeffIndicesWeightsValueFromPos(dB,B,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[0]);
+	getCoeffIndicesWeightsValueFromPos(B,dB,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[1]);
+	getCoeffIndicesWeightsValueFromPos(B,B,dB,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[2]);
 }
 
 template<class NodeData,class Real,class VertexData>
@@ -1440,7 +1426,7 @@ void OctreeBspline<NodeData,Real,VertexData>::getCoeffIndicesWeightsValueFromPos
 		getBposIntU(bsplineDepth,pos,bposInt,u);
 
 		Eigen::Matrix<float,3,3> u_mat;
-		u_mat<<1,1,1,u[0],u[1],u[2],u[0]*u[0],u[1]*u[1],u[2]*u[2];
+		u_mat<< 1,1,1,u[0],u[1],u[2],u[0]*u[0],u[1]*u[1],u[2]*u[2];
 		Eigen::Matrix<float,3,3> Bu;
 		Bu.col(0)=Bx*u_mat.col(0);
 		Bu.col(1)=By*u_mat.col(1);
@@ -1463,6 +1449,7 @@ void OctreeBspline<NodeData,Real,VertexData>::getCoeffIndicesWeightsValueFromPos
 							int coeffIndex=it2->second.first;
 							float coeffValue=it2->second.second;
 							float coeffWeight=Bu(i,0)*Bu(j,1)*Bu(k,2);
+							coeffWeight*= (1<<bsplineDepth); //Note this scale is very important!
 							coeffIndices.push_back(coeffIndex);
 							coeffWeights.push_back(coeffWeight);
 							value+=coeffValue*coeffWeight;

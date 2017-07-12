@@ -307,7 +307,7 @@ int main(int argc,char* argv[])
 		polygons.swap(emptyPolygons);
 	}
 
-	octreeBspline.exportOctreeGrid(scale, translate);
+	//octreeBspline.exportOctreeGrid(scale, translate);
 
 	if(!NoFit.set && Bspline.set && Bspline.value>0) 
 	{
