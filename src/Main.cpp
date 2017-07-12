@@ -298,7 +298,7 @@ int main(int argc,char* argv[])
 		printf("Nodes In: %d / %d\n",octreeBspline.IsoOctree::tree.nodes(),octreeBspline.IsoOctree::tree.leaves());
 		printf("Values In: %d\n",octreeBspline.IsoOctree::cornerValues.size());
 		printf("Scale : %f\n",scale);
-		printf("Translate : %f\n",translate[0],translate[1],translate[2]);
+		printf("Translate : %f %f %f\n",translate[0],translate[1],translate[2]);
 
 		std::vector<InPlyVertex> emptyVertices;
 		std::vector<std::vector<int> > emptyPolygons;
@@ -391,7 +391,7 @@ int main(int argc,char* argv[])
 		}
 
 		for(size_t i=0;i<outVertexWithNormals.size();i++)
-			outVertexWithNormals[i].point=outVertices[i].point/scale-translate;
+			outVertexWithNormals[i].point=outVertexWithNormals[i].point/scale-translate;
 
 		if(Manifold.set || TriangleMesh.set)
 		{

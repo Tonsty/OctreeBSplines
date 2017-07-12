@@ -862,79 +862,82 @@ void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale
 	temp=tree.nextLeaf(NULL,nIndex);
 	while(temp)
 	{
-		for(int e=0;e<Cube::EDGES;e++)
+		if(nIndex.depth == maxDepth) 
 		{
-			int idx[3];
-			int o,i1,i2;
-			for(int i=0;i<3;i++){idx[i]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth+1,nIndex.offset[i]<<1,1);}
-			Cube::FactorEdgeIndex(e,o,i1,i2);
-			switch(o){
-			case 0:
-				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],i1);
-				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],i2);
-				break;
-			case 1:
-				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],i1);
-				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],i2);
-				break;
-			case 2:
-				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],i1);
-				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],i2);
-				break;
-			};
-			long long edgeKey=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
-			if(edgesSet.find(edgeKey)!=edgesSet.end()) continue;
-			edgesSet.insert(edgeKey);
-
-			switch(o){
-			case 0:
-				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],0);
-				break;
-			case 1:
-				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],0);
-				break;
-			case 2:
-				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],0);
-				break;
-			};
-			long long vertexKey0=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
-			auto it0=vertexIndexMap.find(vertexKey0);
-			int vertexIndex0;
-			if(it0!=vertexIndexMap.end()) vertexIndex0=it0->second;
-			else
+			for(int e=0;e<Cube::EDGES;e++)
 			{
-				Point3D<float> vertex;
-				getPosFromCornerKey(vertexKey0,unitLen,vertex.coords);
-				vertexIndex0=vertices.size();
-				vertexIndexMap[vertexKey0]=vertexIndex0;
-				vertices.push_back(vertex);
-			}
+				int idx[3];
+				int o,i1,i2;
+				for(int i=0;i<3;i++){idx[i]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth+1,nIndex.offset[i]<<1,1);}
+				Cube::FactorEdgeIndex(e,o,i1,i2);
+				switch(o){
+				case 0:
+					idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],i1);
+					idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],i2);
+					break;
+				case 1:
+					idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],i1);
+					idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],i2);
+					break;
+				case 2:
+					idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],i1);
+					idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],i2);
+					break;
+				};
+				long long edgeKey=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+				if(edgesSet.find(edgeKey)!=edgesSet.end()) continue;
+				edgesSet.insert(edgeKey);
 
-			switch(o){
-			case 0:
-				idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],1);
-				break;
-			case 1:
-				idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],1);
-				break;
-			case 2:
-				idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],1);
-				break;
-			};
-			long long vertexKey1=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
-			auto it1=vertexIndexMap.find(vertexKey1);
-			int vertexIndex1;
-			if(it1!=vertexIndexMap.end()) vertexIndex1=it1->second;
-			else
-			{
-				Point3D<float> vertex;
-				getPosFromCornerKey(vertexKey1,unitLen,vertex.coords);
-				vertexIndex1=vertices.size();
-				vertexIndexMap[vertexKey1]=vertexIndex1;
-				vertices.push_back(vertex);
-			}
+				switch(o){
+				case 0:
+					idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],0);
+					break;
+				case 1:
+					idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],0);
+					break;
+				case 2:
+					idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],0);
+					break;
+				};
+				long long vertexKey0=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+				auto it0=vertexIndexMap.find(vertexKey0);
+				int vertexIndex0;
+				if(it0!=vertexIndexMap.end()) vertexIndex0=it0->second;
+				else
+				{
+					Point3D<float> vertex;
+					getPosFromCornerKey(vertexKey0,unitLen,vertex.coords);
+					vertexIndex0=vertices.size();
+					vertexIndexMap[vertexKey0]=vertexIndex0;
+					vertices.push_back(vertex);
+				}
 
-			edges.push_back(std::make_pair(vertexIndex0,vertexIndex1));
+				switch(o){
+				case 0:
+					idx[0]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[0],1);
+					break;
+				case 1:
+					idx[1]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[1],1);
+					break;
+				case 2:
+					idx[2]=BinaryNode<Real>::CornerIndex(maxDepth+1,nIndex.depth,nIndex.offset[2],1);
+					break;
+				};
+				long long vertexKey1=(long long)(idx[0]) | (long long)(idx[1])<<15 | (long long)(idx[2])<<30;
+				auto it1=vertexIndexMap.find(vertexKey1);
+				int vertexIndex1;
+				if(it1!=vertexIndexMap.end()) vertexIndex1=it1->second;
+				else
+				{
+					Point3D<float> vertex;
+					getPosFromCornerKey(vertexKey1,unitLen,vertex.coords);
+					vertexIndex1=vertices.size();
+					vertexIndexMap[vertexKey1]=vertexIndex1;
+					vertices.push_back(vertex);
+				}
+
+				edges.push_back(std::make_pair(vertexIndex0,vertexIndex1));
+			}
 		}
 
 		temp=tree.nextLeaf(temp,nIndex);
@@ -1371,6 +1374,24 @@ void OctreeBspline<NodeData,Real,VertexData>::getInterpolateMatrixVector(
 template<class NodeData,class Real,class VertexData>
 void OctreeBspline<NodeData,Real,VertexData>::gradient(const float pos[3], float gradient[3])
 {
+	Eigen::Matrix<float,3,3> B;
+	B<<1,-2,1,
+	1,2,-2,
+	0,0,1;
+	B/=2;
+	Eigen::Matrix<float,3,3> dB;
+	dB<<-2,2,0,
+	2,-4,0,
+	0,2,0;
+	dB/=2;
+	Eigen::Matrix<float,3,3> ddB;
+	ddB<<2,0,0,
+	-4,0,0,
+	2,0,0;
+	ddB/=2;	
+	std::vector<int> coeffIndices;
+	std::vector<float> coeffWeights;	
+
 	float delta=(float)1.0/(1<<maxDepth)/100;
 	float posX[3]={pos[0]+delta,pos[1],pos[2]};
 	float posY[3]={pos[0],pos[1]+delta,pos[2]};
@@ -1385,21 +1406,19 @@ void OctreeBspline<NodeData,Real,VertexData>::gradient(const float pos[3], float
 	gradient[1]=(valueY-value)/delta;
 	gradient[2]=(valueZ-value)/delta;
 
-	//Eigen::Matrix<float,3,3> B;
-	//B<<1,-2,1,1,2,-2,0,0,1;
-	//B/=2;
-	//Eigen::Matrix<float,3,3> dB;
-	//dB<<-2,2,0,2,-4,0,0,2,0;
-	//dB/=2;
-	//Eigen::Matrix<float,3,3> ddB;
-	//ddB<<2,0,0,-4,0,0,2,0,0;
-	//ddB/=2;
+	float len = gradient[0]*gradient[0] + gradient[1]*gradient[1] + gradient[2]*gradient[2];
+	len = sqrtf(len);
 
-	//std::vector<int> coeffIndices;
-	//std::vector<float> coeffWeights;
-	//getCoeffIndicesWeightsValueFromPos(dB,B,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[0]);
-	//getCoeffIndicesWeightsValueFromPos(B,dB,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[1]);
-	//getCoeffIndicesWeightsValueFromPos(B,B,dB,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[2]);
+	// std::cout << "(" << gradient[0]/len << ", " << gradient[1]/len << ", " << gradient[2]/len << ") ";
+
+	// getCoeffIndicesWeightsValueFromPos(dB,B,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[0]);
+	// getCoeffIndicesWeightsValueFromPos(B,dB,B,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[1]);
+	// getCoeffIndicesWeightsValueFromPos(B,B,dB,1,maxBsplineDepth,pos,coeffIndices,coeffWeights,gradient[2]);
+
+	// len = gradient[0]*gradient[0] + gradient[1]*gradient[1] + gradient[2]*gradient[2];
+	// len = sqrtf(len);
+
+	// std::cout << "(" << gradient[0]/len << ", " << gradient[1]/len << ", " << gradient[2]/len << ") " << std::endl;
 }
 
 template<class NodeData,class Real,class VertexData>
