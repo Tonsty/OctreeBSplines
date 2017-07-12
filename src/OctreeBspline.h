@@ -19,12 +19,14 @@
 template<class NodeData,class Real,class VertexData>
 class OctreeBspline: public IsoOctree<NodeData,Real,VertexData>, public Function
 {
+#ifndef WIN32
 	//using IsoOctree<NodeData,Real,VertexData>::MeshInfo;
 	//typename IsoOctree<NodeData,Real,VertexData>::template MeshInfo<MeshReal> mInfo;
 	template<class MeshReal> class MeshInfo: public IsoOctree<NodeData,Real,VertexData>::template MeshInfo<MeshReal> {};
 	using IsoOctree<NodeData,Real,VertexData>::cornerValues;
 	using IsoOctree<NodeData,Real,VertexData>::tree;
-	using IsoOctree<NodeData,Real,VertexData>::maxDepth;			
+	using IsoOctree<NodeData,Real,VertexData>::maxDepth;		
+#endif	
 
 	typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic> Matrix;
 	typedef Eigen::Matrix<float,Eigen::Dynamic,1> Vector;

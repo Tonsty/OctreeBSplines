@@ -28,20 +28,9 @@ DAMAGE.
 #ifndef ISO_OCTREE_INCLUDED
 #define ISO_OCTREE_INCLUDED
 
-#include <hash_map>
+#include "Hash.h"
 #include "MarchingCubes.h"
 #include "Octree.h"
-
-namespace __gnu_cxx
-{
-    template<> struct hash<long long>
-    {
-        size_t operator()(long long x) const
-        {
-            return x;
-        }
-    };
-};
 
 class EdgeKey
 {
@@ -57,6 +46,7 @@ public:
 
 	bool operator != (const EdgeKey& key) const;
 };
+#ifndef WIN32
 class HashEdgeKey
 {
 public:
@@ -65,6 +55,7 @@ public:
 		return (long long)key.key1 | (long long)key.key2 <<32;
 	}
 };
+#endif
 template<class NodeData,class Real>
 class NeighborKey : public OctNode<NodeData,Real>::NeighborKey
 {
@@ -110,7 +101,11 @@ protected:
 	{
 	public:
 		std::vector<Point3D<MeshReal> > vertexNormals;	
+#ifdef WIN32
+		stdext::hash_map<EdgeKey,Point3D<MeshReal> > edgeNormals;
+#else
 		stdext::hash_map<EdgeKey,Point3D<MeshReal>,HashEdgeKey > edgeNormals;
+#endif
 		std::vector<Point3D<MeshReal> > triangleNormals;
 		std::vector<TriangleIndex> triangles;
 		std::vector<Point3D<MeshReal> > vertices;

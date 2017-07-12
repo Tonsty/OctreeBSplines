@@ -25,10 +25,10 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
-#ifndef _WIN32
+#ifndef WIN32
 #ifndef stdext
 #define stdext __gnu_cxx
-#endif	
+#endif
 #endif	
 #include <stdio.h>
 #include <stdlib.h>
