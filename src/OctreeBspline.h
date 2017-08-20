@@ -104,7 +104,7 @@ public:
 
 	void setMinDepthMCLeafNode(const Real& isoValue,const int& minDepth,const int& useFull);
 
-	void exportOctreeGrid(const float scale,const Point3D<float> translate);
+	void exportOctreeGrid(const float scale,const Point3D<float> translate, const int output_depth);
 };
 
 #include "OctreeBspline.inl"

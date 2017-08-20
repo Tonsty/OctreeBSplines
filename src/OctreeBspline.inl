@@ -848,7 +848,7 @@ void OctreeBspline<NodeData,Real,VertexData>::exportVolumeData(const float scale
 }
 
 template<class NodeData,class Real,class VertexData>
-void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale, const Point3D<float> translate)
+void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale, const Point3D<float> translate,  const int output_depth)
 {
 	std::vector<Point3D<float> > vertices;
 	std::vector<std::pair<int,int> > edges;
@@ -862,7 +862,7 @@ void OctreeBspline<NodeData,Real,VertexData>::exportOctreeGrid(const float scale
 	temp=tree.nextLeaf(NULL,nIndex);
 	while(temp)
 	{
-		if(nIndex.depth == maxDepth) 
+		if(output_depth<0 || (nIndex.depth == output_depth)) 
 		{
 			for(int e=0;e<Cube::EDGES;e++)
 			{

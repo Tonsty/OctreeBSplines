@@ -213,9 +213,11 @@ void ShowUsage(char* ex)
 	printf("\t\tIf this flag is set, the isosurface is directly extracted\n");
 	printf("\t\tfrom the adaptive signed distance field without fitting.\n\n");
 
-	printf("\t[--octree]\n");
-	printf("\t\tThis flag tell the program to output\n");
-	printf("\t\tthe octree grid (octree.vtk).\n\n");
+	printf("\t[--octree <depth>]\n");
+	printf("\t\tThis flag tell the program to output \n");
+	printf("\t\tthe octree grid (octree.vtk).\n");
+	printf("\t\tdepth=-1 output complete octree.\n");
+	printf("\t\tdepth>= output corresponding depth.\n\n");
 
 	printf("\t[--normal]\n");
 	printf("\t\tThis flag tell the program to output mesh with normal\n\n");
@@ -240,17 +242,17 @@ int main(int argc,char* argv[])
 	cmdLineString In, Out;
 	cmdLineReadable Conforming,FullCaseTable,TriangleMesh,Dual,Manifold,NoFit,Normal,SphereTest;
 	cmdLineFloat Flatness(-1),Curvature(-1),Smooth(0.001),Interpolate(0.0),Splat(1.0),IsoValue(0.0);
-	cmdLineInt MaxDepth,Bspline(-1),Volume(128),MinDepthMC(-1),Bloomenthal(128),MinDepthTree(-1);
+	cmdLineInt MaxDepth,Bspline(-1),Volume(128),MinDepthMC(-1),Bloomenthal(128),MinDepthTree(-1),Octree(-1);
 	char* paramNames[]=
 	{
 		"in","out","flatness","curvature","conforming","fullCaseTable","maxDepth","triangleMesh","dual","manifold",
-		"bspline","smooth","interpolate","minDepthTree","minDepthMC","volume","splat","noFit","normal","sphereTest",
+		"bspline","smooth","interpolate","minDepthTree","minDepthMC","volume","splat","noFit","octree","normal","sphereTest",
 		"isoValue","bloomenthal"
 	};
 	cmdLineReadable* params[]= 
 	{
 		&In,&Out,&Flatness,&Curvature,&Conforming,&FullCaseTable,&MaxDepth,&TriangleMesh,&Dual,&Manifold,
-		&Bspline,&Smooth,&Interpolate,&MinDepthTree,&MinDepthMC,&Volume,&Splat,&NoFit,&Normal,&SphereTest,
+		&Bspline,&Smooth,&Interpolate,&MinDepthTree,&MinDepthMC,&Volume,&Splat,&NoFit,&Octree,&Normal,&SphereTest,
 		&IsoValue,&Bloomenthal
 	};
 	int paramNum=sizeof(paramNames)/sizeof(char*);
@@ -307,7 +309,7 @@ int main(int argc,char* argv[])
 		polygons.swap(emptyPolygons);
 	}
 
-	//octreeBspline.exportOctreeGrid(scale, translate);
+	if(Octree.set) octreeBspline.exportOctreeGrid(scale, translate, Octree.value);
 
 	if(!NoFit.set && Bspline.set && Bspline.value>0) 
 	{
